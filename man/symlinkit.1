@@ -1,0 +1,63 @@
+.\" Manpage for symlinkit
+.\" Save as symlinkit.1 in ~/.local/share/man/man1/
+.TH SYMLINKIT 1 "September 2025" "1.0" "User Commands"
+.SH NAME
+symlinkit \- flexible symlink helper with fzf + dry-run support
+.SH SYNOPSIS
+.B symlinkit
+[OPTIONS] SOURCE DESTINATION
+.SH DESCRIPTION
+The
+.B symlinkit
+command simplifies creating symbolic links, with interactive selection,
+merge/overwrite modes, and dry-run previews.
+
+If SOURCE or DESTINATION are not provided, fzf will be used to pick them.
+
+If no mode is specified (-o / -m), and the target already exists,
+you will be prompted to choose overwrite, merge, or cancel.
+
+.SH OPTIONS
+.TP
+.B -o
+Overwrite mode (remove existing target, replace with symlink).
+.TP
+.B -m
+Merge mode (recursively symlink contents into destination).
+.TP
+.B --dry-run
+Preview actions (conflicts default to skip).
+.TP
+.B --dry-run-overwrite
+Preview actions (conflicts default to overwrite).
+.TP
+.B --tree
+Show final destination tree (requires 'tree').
+
+.SH EXAMPLES
+Overwrite:
+.nf
+symlinkit -o ~/dotfiles/config ~/.config
+.fi
+
+Merge contents:
+.nf
+symlinkit -m ~/dotfiles/scripts ~/bin
+.fi
+
+Dry-run with skip conflicts:
+.nf
+symlinkit --dry-run -m ~/src/project ~/deploy
+.fi
+
+Dry-run with overwrite conflicts and tree:
+.nf
+symlinkit --dry-run-overwrite -m --tree ~/dotfiles/custom ~/.custom
+.fi
+
+.SH AUTHOR
+Written by Adrian Thomas.
+
+.SH SEE ALSO
+ln(1), fzf(1), tree(1)
+
