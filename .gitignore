@@ -1,0 +1,30 @@
+.DS_Store
+Thumbs.db
+
+# Editor/IDE junk
+*~
+*.swp
+*.swo
+*.bak
+*.tmp
+*.log
+
+# VS Code
+.vscode/
+.history/
+
+# JetBrains / IntelliJ / IDEA
+.idea/
+
+# Test artifacts
+/tmp/
+/symlink-test/
+/symlink-test.sh.old
+
+# Build artifacts
+*.out
+*.o
+
+# Man page rebuilds
+man/*.1.bak
+

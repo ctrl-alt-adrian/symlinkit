@@ -1,5 +1,7 @@
 # symlinkit
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A small command-line tool that makes working with symlinks less of a hassle.  
 It supports interactive directory picking (via [fzf](https://github.com/junegunn/fzf)), recursive linking, overwrite/merge modes, and safe dry-runs so you can preview before touching your files.
 
