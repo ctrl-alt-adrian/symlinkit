@@ -13,11 +13,12 @@
 #
 #   --list [DIR]           List symlinks (default: $HOME)
 #   --broken [DIR]         List only broken symlinks (default: $HOME)
-#   --overview [DIR]       Show symlink overview (tree if installed, fallback to find) (default: $HOME)
+#   --overview [DIR]       Show symlink overview (symlinks only; tree if installed; fallback to flat) (default: $HOME)
 #   --count-only [DIR]     Show only the count of symlinks (default: $HOME)
 #   --depth N              Limit overview depth (default: 3)
 #   --sort [path|target]   Sort results by path or target
 #   --json                 Output results in JSON format
+#   --fix-broken [DIR]     Interactively fix broken symlinks (delete / update) (default: $HOME)
 #
 #   -h, --help             Show help message
 #   -v, --version          Show version info
@@ -26,12 +27,13 @@
 #   symlinkit -o ~/dotfiles/config ~/.config
 #   symlinkit --list
 #   symlinkit --list /etc
-#   symlinkit --list /
-#   symlinkit --json --broken
-#   symlinkit --overview ~ --depth 2 --json
-#   symlinkit --count-only ~
+#   symlinkit --broken
+#   symlinkit --overview ~ --depth 2
+#   symlinkit --json --list /usr/local/bin
+#   symlinkit --fix-broken              # scan $HOME
+#   symlinkit --fix-broken /etc         # scan /etc
 #
-VERSION="1.1.2"
+VERSION="1.2.0"
 
 # --- Dependencies ---
 if ! command -v fzf >/dev/null 2>&1; then
@@ -44,12 +46,12 @@ if ! command -v realpath >/dev/null 2>&1; then
   exit 1
 fi
 
-# --- Colors ---
+# --- Colors (cyan path, magenta target) ---
 PATH_COLOR="\033[0;36m"   # Cyan
 TARGET_COLOR="\033[0;35m" # Magenta
-GREEN="\033[0;32m"
 RED="\033[0;31m"
 YELLOW="\033[0;33m"
+GREEN="\033[0;32m"
 RESET="\033[0m"
 
 # --- Modes ---
@@ -64,6 +66,7 @@ count_only=false
 json=false
 sort_by=""
 depth=3
+fix_broken=false
 
 linked=0
 overwritten=0
@@ -84,6 +87,7 @@ while [[ "$1" == -* ]]; do
     --json) json=true ;;
     --sort) shift; sort_by="$1" ;;
     --depth) shift; depth="$1" ;;
+    --fix-broken) fix_broken=true ;;
     -h|--help)
       grep '^# ' "$0" | sed 's/^# //'
       exit 0 ;;
@@ -95,7 +99,7 @@ while [[ "$1" == -* ]]; do
   shift
 done
 
-# --- Helper: Sort Results ---
+# --- Helper: Sort Results for "path -> target" lines ---
 sort_results() {
   case "$sort_by" in
     path) sort ;;
@@ -109,8 +113,7 @@ if [[ "$list_mode" == true ]]; then
   dir="${1:-$HOME}"
   if [[ -n "$1" && -d "$1" ]]; then shift; fi
   if $json; then
-    find "$dir" -type l -printf '{"path":"%p","target":"%l"}\n' 2>/dev/null \
-      | sort_results | jq -s .
+    find "$dir" -type l -printf '{"path":"%p","target":"%l"}\n' 2>/dev/null | sort_results | jq -s .
   else
     count=$(find "$dir" -type l 2>/dev/null | wc -l)
     echo "📊 Found symlinks in $dir: $count"
@@ -124,8 +127,7 @@ if [[ "$broken_mode" == true ]]; then
   dir="${1:-$HOME}"
   if [[ -n "$1" && -d "$1" ]]; then shift; fi
   if $json; then
-    find "$dir" -xtype l -printf '{"path":"%p","target":"%l"}\n' 2>/dev/null \
-      | sort_results | jq -s .
+    find "$dir" -xtype l -printf '{"path":"%p","target":"%l"}\n' 2>/dev/null | sort_results | jq -s .
   else
     count=$(find "$dir" -xtype l 2>/dev/null | wc -l)
     echo "📊 Found broken symlinks in $dir: $count"
@@ -143,17 +145,17 @@ if [[ "$count_only" == true ]]; then
   exit 0
 fi
 
-# --- Overview Mode ---
+# --- Overview (symlinks only) ---
 if [[ "$overview_mode" == true ]]; then
   dir="${1:-$HOME}"
   if [[ -n "$1" && -d "$1" ]]; then shift; fi
   if command -v tree >/dev/null 2>&1; then
     if $json; then
-      find "$dir" -maxdepth "$depth" -type l -printf '{"path":"%p","target":"%l"}\n' \
-        2>/dev/null | sort_results | jq -s .
+      find "$dir" -maxdepth "$depth" -type l -printf '{"path":"%p","target":"%l"}\n' 2>/dev/null | sort_results | jq -s .
     else
       echo "📂 Symlink overview of $dir (depth=$depth):"
-      tree -L "$depth" -F -p -l "$dir"
+      # Print root line (NR==1), then only lines with '->' (symlinks)
+      tree -L "$depth" -F -p -l "$dir" | awk 'NR==1{print;next} /->/'
     fi
   else
     echo "⚠️ tree not found, falling back to flat list."
@@ -162,7 +164,68 @@ if [[ "$overview_mode" == true ]]; then
   exit 0
 fi
 
+# --- Fix Broken Symlinks (interactive) ---
+if [[ "$fix_broken" == true ]]; then
+  dir="${1:-$HOME}"
+  if [[ -n "$1" && -d "$1" ]]; then shift; fi
+
+  mapfile -t broken_links < <(find "$dir" -xtype l 2>/dev/null)
+  if [[ "${#broken_links[@]}" -eq 0 ]]; then
+    echo "✅ No broken symlinks in $dir"
+    exit 0
+  fi
+
+  deleted=0
+  updated=0
+  skipped_count=0
+
+  for link in "${broken_links[@]}"; do
+    target=$(readlink "$link")
+    echo -e "🔗 Broken symlink: ${PATH_COLOR}$link${RESET} -> ${TARGET_COLOR}$target${RESET}"
+    printf "[d]elete / [u]pdate / [s]kip > "
+    read -r -n1 action; echo
+
+    case "$action" in
+      d|D)
+        if $dry_run; then
+          echo -e "${RED}❌ Would delete${RESET}: $link"
+        else
+          rm -f -- "$link" && echo -e "${RED}❌ Deleted${RESET}: $link"
+        fi
+        ((deleted++))
+        ;;
+      u|U)
+        echo "Enter new target path (leave blank to pick with fzf):"
+        read -r new_target
+        if [[ -z "$new_target" ]]; then
+          # Allow quick pick; adjust search roots/depths as you prefer
+          new_target=$(find "${SYMLINK_BASE_SRC:-$HOME}" -mindepth 0 -maxdepth 5 2>/dev/null | fzf --prompt="New target> " || true)
+        fi
+        if [[ -n "$new_target" ]]; then
+          if $dry_run; then
+            echo -e "${GREEN}✅ Would update${RESET}: $link -> $new_target"
+          else
+            ln -sfn -- "$new_target" "$link" && echo -e "${GREEN}✅ Updated${RESET}: $link -> $new_target"
+          fi
+          ((updated++))
+        else
+          echo "⏭️ Skipped: $link"
+          ((skipped_count++))
+        fi
+        ;;
+      *)
+        echo "⏭️ Skipped: $link"
+        ((skipped_count++))
+        ;;
+    esac
+  done
+
+  echo -e "📊 Summary: ${RED}$deleted deleted${RESET}, ${GREEN}$updated updated${RESET}, ${YELLOW}$skipped_count skipped${RESET}"
+  exit 0
+fi
+
 # --- Core Symlink Logic (overwrite/merge) ---
+# Expand arguments
 if [[ -n "$1" ]]; then
   src="$1"; shift
 else
@@ -179,19 +242,21 @@ else
 fi
 [[ -z "$dest" ]] && echo "❌ No destination selected." && exit 1
 
+# Expand and absolutize
 src=$(realpath -m "$(eval echo "$src")")
 dest=$(realpath -m "$(eval echo "$dest")")
 
+# Ensure destination exists
 $dry_run || mkdir -p -- "$dest"
 
 linkname=$(basename -- "$src")
 target="$dest/$linkname"
 
-# Conflict handling
+# If target exists, pick mode interactively (if no flag given)
 if [[ -e "$target" || -L "$target" ]]; then
   if [[ -z "$mode" ]]; then
     printf "⚠️  %s already exists.\n[o]verwrite / [m]erge / [c]ancel > " "$target"
-    read -n1 choice; echo
+    read -r -n1 choice; echo
     case "$choice" in
       o|O) mode="overwrite" ;;
       m|M) mode="merge" ;;
@@ -241,7 +306,7 @@ if [[ "$mode" == "merge" ]]; then
             fi
           else
             printf "⚠️  Conflict: %s exists.\n[s]kip / [o]verwrite / [a]ll overwrite / [c]ancel > " "$dest_item"
-            read -n1 action; echo
+            read -r -n1 action; echo
             case "$action" in
               s|S) echo -e "${YELLOW}⏭️ Skipped:${RESET} $dest_item"; ((skipped++)) ;;
               o|O) rm -rf -- "$dest_item"; ln -s -- "$item" "$dest_item"; echo -e "${RED}🔄 Overwritten:${RESET} $dest_item"; ((overwritten++)) ;;
@@ -263,7 +328,7 @@ if [[ "$mode" == "merge" ]]; then
   done
 fi
 
-# --- End Summary ---
+# --- End output ---
 if $dry_run; then
   echo -e "(${YELLOW}Dry run:${RESET} no changes applied)"
   echo -e "📊 Summary: ${GREEN}$linked would link${RESET}, ${RED}$overwritten would overwrite${RESET}, ${YELLOW}$skipped would skip${RESET}"

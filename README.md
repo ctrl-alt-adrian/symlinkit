@@ -13,20 +13,18 @@ Originally built to manage dotfiles, it works anywhere you need to symlink direc
 ## Features
 
 - Interactive source/destination picking with `fzf`
-- Merge mode → recursively symlink contents of a directory
+- Merge mode → recursively symlink directory contents
 - Overwrite mode → replace existing files/folders
 - Dry-run support → see what _would_ happen before committing
-- `tree` output for destination structure (`--tree`)
-- List symlinks (`--list [DIR]`)
-- List broken symlinks (`--broken [DIR]`)
-- Show symlink overview (`--overview [DIR]`, uses `tree` if available, falls back to `find`)
-- Depth control for overview (`--depth N`, default 3)
-- Count symlinks only (`--count-only [DIR]`)
-- Sorting (`--sort path|target`)
-- JSON output (`--json`) for scripting/automation
-- Integrated `fzf` preview mode for browsing results interactively
-- Colorized `--help` output
-- Version flag (`-v`, `--version`)
+- `--list [DIR]` → list symlinks (default `$HOME`), with `path -> target` output
+- `--broken [DIR]` → list **broken** symlinks (default `$HOME`)
+  `--overview [DIR]` → symlink overview (symlinks only; tree visualization if installed, fallback to flat list)
+- `--count-only [DIR]` → print only the count of symlinks
+- `--depth N` → limit tree depth (default 3)
+- `--sort path|target` → sort by path or target
+- `--json` → machine-friendly output for list/broken/overview
+- `--fix-broken [DIR]` → interactively fix broken symlinks (delete, update, skip)
+- Colorized output for readability (cyan path, magenta target)
 - Includes a man page (`man symlinkit`)
 
 ---
@@ -88,7 +86,7 @@ Flags
 
 --broken [DIR] → list broken symlinks (default: $HOME if DIR not provided)
 
---overview [DIR] → symlink overview (tree/find)
+--overview [DIR] → symlink overview (symlinks only; tree if installed, fallback to flat)
 
 --depth N → overview depth (default 3)
 
@@ -97,6 +95,8 @@ Flags
 --sort path|target → sort results
 
 --json → JSON output mode
+
+--fix-broken [DIR] → interactively fix broken symlinks (delete, update, skip; default $HOME)
 
 -h, --help → colorized help text
 
@@ -124,7 +124,10 @@ symlinkit --list
 # List broken symlinks in /etc
 symlinkit --broken /etc
 
-# Overview of symlinks in ~/bin at depth 2
+# Interactively fix broken symlinks under $HOME
+symlinkit --fix-broken
+
+# Overview of symlinks in ~/bin at depth 2 (symlinks only)
 symlinkit --overview ~/bin --depth 2
 
 # Count symlinks in $HOME
@@ -142,4 +145,4 @@ tree (optional, for --tree and --overview)
 
 realpath (from GNU coreutils) → required
 
-jq→ required for JSON output
+jq → optional, required only for --json output

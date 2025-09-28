@@ -3,6 +3,33 @@
 All notable changes to this project will be documented in this file.  
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+---
+
+## [1.2.0] - 2025-09-28
+
+### ✨ Features
+
+- Added **`--fix-broken [DIR]`**: interactively fix broken symlinks (delete, update, or skip).
+  - Defaults to `$HOME` if no directory is passed.
+  - Supports `fzf` for selecting new targets.
+  - Includes a summary of deleted, updated, and skipped links.
+  - Supports `--dry-run` mode.
+- Refined **`--overview`**:
+  - Now shows **only symlinks** in tree mode (filters out non-symlinks).
+  - Falls back to a flat symlink list if `tree` is not installed.
+- Colorized outputs across `--list`, `--broken`, and `--overview` fallback:
+  - **Path** → Cyan
+  - **Target** → Magenta
+- Sorting by `--sort path|target` supported across listings.
+
+### 📝 Documentation
+
+- Updated **README** with new usage examples for `--fix-broken` and `--overview`.
+- Updated **man page** (`symlinkit.1`) with new flags and version bump.
+- Clarified default behavior: `$HOME` is used if no directory is specified.
+
+---
+
 ## [1.1.2] - 2025-09-28
 
 ### ✨ Features
