@@ -135,6 +135,9 @@ symlinkit --json --list /usr/local/bin
 Requirements
 
 fzf → required for interactive selection
+
 tree (optional, for --tree and --overview)
+
 realpath (from GNU coreutils) → required
+
 jq→ required for JSON output
