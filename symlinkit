@@ -13,178 +13,155 @@
 #
 #   --list [DIR]           List symlinks (default: $HOME)
 #   --broken [DIR]         List only broken symlinks (default: $HOME)
-#   --overview [DIR]       Show symlink overview (tree if installed, fallback to find)
-#   --count-only [DIR]     Show only the count of symlinks
+#   --overview [DIR]       Show symlink overview (tree if installed, fallback to find) (default: $HOME)
+#   --count-only [DIR]     Show only the count of symlinks (default: $HOME)
 #   --depth N              Limit overview depth (default: 3)
 #   --sort [path|target]   Sort results by path or target
 #   --json                 Output results in JSON format
 #
+#   -h, --help             Show help message
+#   -v, --version          Show version info
+#
 # 💡 Examples:
 #   symlinkit -o ~/dotfiles/config ~/.config
-#   symlinkit --list --sort target
-#   symlinkit --json --broken /etc
+#   symlinkit --list
+#   symlinkit --list /etc
+#   symlinkit --list /
+#   symlinkit --json --broken
 #   symlinkit --overview ~ --depth 2 --json
 #   symlinkit --count-only ~
 #
+VERSION="1.1.1"
 
-VERSION="1.1"
+# --- Dependencies ---
+if ! command -v fzf >/dev/null 2>&1; then
+  echo "❌ fzf not found. Install with: sudo pacman -S fzf"
+  exit 1
+fi
+
+if ! command -v realpath >/dev/null 2>&1; then
+  echo "❌ realpath not found. Install coreutils."
+  exit 1
+fi
 
 # --- Colors ---
 GREEN="\033[0;32m"
 RED="\033[0;31m"
 YELLOW="\033[0;33m"
 RESET="\033[0m"
-BOLD="\033[1m"
 
-# --- Defaults ---
+# --- Modes ---
 dry_run=false
 dry_run_overwrite=false
 mode=""
 show_tree=false
-list_mode=""
-json_output=false
-sort_field=""
+list_mode=false
+broken_mode=false
+overview_mode=false
+count_only=false
+json=false
+sort_by=""
 depth=3
-search_path=""
 
 linked=0
 overwritten=0
 skipped=0
 
-# --- Help Function ---
-show_help() {
-  echo -e "${BOLD}${GREEN}symlinkit${RESET} - A flexible symlink helper with fzf + dry-run support"
-  echo
-  echo -e "${YELLOW}Usage:${RESET}"
-  echo "  symlinkit [FLAGS] [SOURCE] [DESTINATION]"
-  echo
-  echo -e "${YELLOW}Flags:${RESET}"
-  cat <<EOF
-  -o                     Overwrite mode (remove existing target, replace with symlink)
-  -m                     Merge mode (recursively symlink contents into destination)
-  --dry-run              Preview actions (conflicts default to "skip")
-  --dry-run-overwrite    Preview actions (conflicts default to "overwrite")
-  --tree                 Show final destination tree (requires 'tree')
-
-  --list [DIR]           List symlinks (default: \$HOME)
-  --broken [DIR]         List only broken symlinks (default: \$HOME)
-  --overview [DIR]       Show symlink overview (tree if installed, fallback to find)
-  --count-only [DIR]     Show only the count of symlinks
-  --depth N              Limit overview depth (default: 3)
-  --sort [path|target]   Sort results by path or target
-  --json                 Output results in JSON format
-
-  -h, --help             Show this help message
-  -v, --version          Show version number
-EOF
-  echo
-  echo -e "${YELLOW}Examples:${RESET}"
-  cat <<EOF
-  symlinkit -o ~/dotfiles/config ~/.config
-  symlinkit --list --sort target
-  symlinkit --json --broken /etc
-  symlinkit --overview ~ --depth 2 --json
-  symlinkit --count-only ~
-EOF
-}
-
-# --- Pre-flight checks ---
-if ! command -v fzf >/dev/null 2>&1; then
-  echo "❌ fzf not found. Install it: sudo pacman -S fzf"
-  exit 1
-fi
-if ! command -v realpath >/dev/null 2>&1; then
-  echo "❌ realpath not found. Install coreutils."
-  exit 1
-fi
-
-# --- Parse flags ---
+# --- Parse Flags ---
 while [[ "$1" == -* ]]; do
   case "$1" in
     --dry-run) dry_run=true ;;
     --dry-run-overwrite) dry_run=true; dry_run_overwrite=true ;;
+    --tree) show_tree=true ;;
     -o) mode="overwrite" ;;
     -m) mode="merge" ;;
-    --tree) show_tree=true ;;
-    --list) list_mode="all"; shift; search_path="${1:-$HOME}"; [[ "$search_path" == -* ]] && search_path="$HOME" && set -- "$@" ;;
-    --broken) list_mode="broken"; shift; search_path="${1:-$HOME}"; [[ "$search_path" == -* ]] && search_path="$HOME" && set -- "$@" ;;
-    --overview) list_mode="overview"; shift; search_path="${1:-$HOME}"; [[ "$search_path" == -* ]] && search_path="$HOME" && set -- "$@" ;;
-    --count-only) list_mode="count"; shift; search_path="${1:-$HOME}"; [[ "$search_path" == -* ]] && search_path="$HOME" && set -- "$@" ;;
+    --list) list_mode=true ;;
+    --broken) broken_mode=true ;;
+    --overview) overview_mode=true ;;
+    --count-only) count_only=true ;;
+    --json) json=true ;;
+    --sort) shift; sort_by="$1" ;;
     --depth) shift; depth="$1" ;;
-    --sort) shift; sort_field="$1" ;;
-    --json) json_output=true ;;
-    -v|--version) echo "symlinkit $VERSION"; exit 0 ;;
-    -h|--help) show_help; exit 0 ;;
+    -h|--help)
+      grep '^# ' "$0" | sed 's/^# //'
+      exit 0 ;;
+    -v|--version)
+      echo "symlinkit $VERSION"
+      exit 0 ;;
     *) echo "❌ Unknown flag: $1"; exit 1 ;;
   esac
   shift
 done
 
-# --- Helper: format results into JSON object ---
-to_json() {
-  local results="$1"
-  local count
-  count=$(echo "$results" | grep -c .)
-  local links
-  links=$(echo "$results" | awk -F' -> ' '{printf "{\"link\":\"%s\",\"target\":\"%s\"}\n",$1,$2}' | jq -s .)
-  jq -n --argjson links "$links" --argjson count "$count" '{count: $count, links: $links}'
+# --- Helper: Sort Results ---
+sort_results() {
+  case "$sort_by" in
+    path) sort ;;
+    target) awk '{print $NF, $0}' | sort | cut -d' ' -f2- ;;
+    *) cat ;;
+  esac
 }
 
-# --- Handle listing modes ---
-if [[ -n "$list_mode" ]]; then
-  case "$list_mode" in
-    all) results=$(find "$search_path" -type l -printf '%p -> %l\n') ;;
-    broken) results=$(find "$search_path" -xtype l -printf '%p -> %l\n') ;;
-    overview)
-      if command -v tree >/dev/null 2>&1; then
-        results=$(tree -lF -L "$depth" "$search_path" | grep '@' | sed 's/.*\(.* -> .*\)/\1/')
-      else
-        results=$(find "$search_path" -maxdepth "$depth" -type l -printf '%p -> %l\n')
-      fi
-      ;;
-    count) results=$(find "$search_path" -type l -printf '%p -> %l\n') ;;
-  esac
-
-  count=$(echo "$results" | grep -c .)
-
-  # Sorting
-  if [[ "$sort_field" == "path" ]]; then
-    results=$(echo "$results" | sort -k1,1)
-  elif [[ "$sort_field" == "target" ]]; then
-    results=$(echo "$results" | sort -t'>' -k2,2)
-  fi
-
-  # Count-only shortcut
-  if [[ "$list_mode" == "count" ]]; then
-    if $json_output; then
-      jq -n --argjson count "$count" '{count: $count}'
-    else
-      echo -e "${YELLOW}📊 Found symlinks:${RESET} $count"
-    fi
-    exit 0
-  fi
-
-  if $json_output; then
-    to_json "$results"
+# --- List Symlinks ---
+if [[ "$list_mode" == true ]]; then
+  dir="${1:-$HOME}"
+  if [[ -n "$1" && -d "$1" ]]; then shift; fi
+  if $json; then
+    find "$dir" -type l -printf '{"path":"%p","target":"%l"}\n' 2>/dev/null \
+      | sort_results | jq -s .
   else
-    echo -e "${YELLOW}📊 Found symlinks:${RESET} $count"
-    echo "$results" \
-      | fzf --ansi \
-            --prompt="Symlinks> " \
-            --preview 'ls -l $(echo {} | cut -d" " -f1)' \
-            --preview-window=down:15
+    count=$(find "$dir" -type l 2>/dev/null | wc -l)
+    echo "📊 Found symlinks in $dir: $count"
+    find "$dir" -type l -ls 2>/dev/null | sort_results
   fi
   exit 0
 fi
 
-# --- If no args at all, show short usage ---
-if [[ $# -eq 0 ]]; then
-  echo -e "${YELLOW}Usage:${RESET} symlinkit [FLAGS] [SOURCE] [DESTINATION]"
-  echo "Try 'symlinkit --help' for more information."
+# --- Broken Symlinks ---
+if [[ "$broken_mode" == true ]]; then
+  dir="${1:-$HOME}"
+  if [[ -n "$1" && -d "$1" ]]; then shift; fi
+  if $json; then
+    find "$dir" -xtype l -printf '{"path":"%p","target":"%l"}\n' 2>/dev/null \
+      | sort_results | jq -s .
+  else
+    count=$(find "$dir" -xtype l 2>/dev/null | wc -l)
+    echo "📊 Found broken symlinks in $dir: $count"
+    find "$dir" -xtype l -ls 2>/dev/null | sort_results
+  fi
   exit 0
 fi
 
-# --- Handle symlink creation workflow ---
+# --- Count Only ---
+if [[ "$count_only" == true ]]; then
+  dir="${1:-$HOME}"
+  if [[ -n "$1" && -d "$1" ]]; then shift; fi
+  count=$(find "$dir" -type l 2>/dev/null | wc -l)
+  echo "🔢 Symlink count in $dir: $count"
+  exit 0
+fi
+
+# --- Overview Mode ---
+if [[ "$overview_mode" == true ]]; then
+  dir="${1:-$HOME}"
+  if [[ -n "$1" && -d "$1" ]]; then shift; fi
+  if command -v tree >/dev/null 2>&1; then
+    if $json; then
+      find "$dir" -maxdepth "$depth" -type l -printf '{"path":"%p","target":"%l"}\n' \
+        2>/dev/null | sort_results | jq -s .
+    else
+      echo "📂 Symlink overview of $dir (depth=$depth):"
+      tree -L "$depth" -F -p -l -P '*' "$dir"
+    fi
+  else
+    echo "⚠️ tree not found, falling back to flat list."
+    find "$dir" -maxdepth "$depth" -type l -ls 2>/dev/null | sort_results
+  fi
+  exit 0
+fi
+
+# --- Core Symlink Logic (overwrite/merge, unchanged) ---
+# Expand arguments
 if [[ -n "$1" ]]; then
   src="$1"; shift
 else
@@ -201,17 +178,15 @@ else
 fi
 [[ -z "$dest" ]] && echo "❌ No destination selected." && exit 1
 
-# Expand and absolutize paths
 src=$(realpath -m "$(eval echo "$src")")
 dest=$(realpath -m "$(eval echo "$dest")")
 
-# Ensure destination exists
 $dry_run || mkdir -p -- "$dest"
 
 linkname=$(basename -- "$src")
 target="$dest/$linkname"
 
-# If target exists, pick mode interactively (if no flag given)
+# Conflict handling
 if [[ -e "$target" || -L "$target" ]]; then
   if [[ -z "$mode" ]]; then
     printf "⚠️  %s already exists.\n[o]verwrite / [m]erge / [c]ancel > " "$target"
@@ -287,7 +262,7 @@ if [[ "$mode" == "merge" ]]; then
   done
 fi
 
-# --- End output ---
+# --- End Summary ---
 if $dry_run; then
   echo -e "(${YELLOW}Dry run:${RESET} no changes applied)"
   echo -e "📊 Summary: ${GREEN}$linked would link${RESET}, ${RED}$overwritten would overwrite${RESET}, ${YELLOW}$skipped would skip${RESET}"
@@ -296,7 +271,7 @@ elif $show_tree; then
     echo "📂 Destination listing:"
     tree -fp "$dest"
   else
-    echo "❌ tree not found. Install it: sudo pacman -S tree"
+    echo "❌ Tree not found. Install with: sudo pacman -S tree"
   fi
 fi
 

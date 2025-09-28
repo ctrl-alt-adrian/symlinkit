@@ -1,6 +1,6 @@
 .\" Manpage for symlinkit
 .\" Save as symlinkit.1 in ~/.local/share/man/man1/
-.TH SYMLINKIT 1 "September 2025" "1.1" "User Commands"
+.TH SYMLINKIT 1 "September 2025" "1.1.1" "User Commands"
 .SH NAME
 symlinkit \- flexible symlink helper with fzf, dry-run, and symlink overview tools
 .SH SYNOPSIS
@@ -38,12 +38,12 @@ Preview actions (conflicts default to overwrite).
 Show final destination tree (requires \fBtree\fR).
 .TP
 .B --list [DIR]
-List all symlinks under DIR (default: $HOME).
-Interactive view via \fBfzf\fR unless \fB--json\fR is specified.
+List all symlinks under DIR.
+If no DIR is provided, defaults to $HOME.
 .TP
 .B --broken [DIR]
-List only broken symlinks under DIR (default: $HOME).
-Interactive view via \fBfzf\fR unless \fB--json\fR is specified.
+List only broken symlinks under DIR.
+If no DIR is provided, defaults to $HOME.
 .TP
 .B --overview [DIR]
 Show a symlink overview in tree format (default: $HOME).
@@ -69,6 +69,21 @@ Show a colorized help message.
 Show version number.
 
 .SH EXAMPLES
+List symlinks in $HOME:
+.nf
+symlinkit --list
+.fi
+
+List broken symlinks in /etc:
+.nf
+symlinkit --broken /etc
+.fi
+
+List symlinks across entire system (root):
+.nf
+symlinkit --list /
+.fi
+
 Overwrite:
 .nf
 symlinkit -o ~/dotfiles/config ~/.config
@@ -89,26 +104,6 @@ Dry-run with overwrite conflicts and tree:
 symlinkit --dry-run-overwrite -m --tree ~/dotfiles/custom ~/.custom
 .fi
 
-List symlinks in $HOME:
-.nf
-symlinkit --list
-.fi
-
-List broken symlinks in /etc as JSON:
-.nf
-symlinkit --json --broken /etc
-.fi
-
-Symlink overview of ~/bin with depth 2:
-.nf
-symlinkit --overview ~/bin --depth 2
-.fi
-
-Count symlinks in $HOME:
-.nf
-symlinkit --count-only ~
-.fi
-
 .SH AUTHOR
 Written by Adrian Thomas.
 
@@ -116,7 +111,7 @@ Written by Adrian Thomas.
 ln(1), fzf(1), tree(1), find(1), jq(1)
 
 .SH VERSION
-symlinkit 1.1 (September 2025)
+symlinkit 1.1.1 (September 2025)
 
 .SH REPORTING BUGS
 Report issues or feature requests at:

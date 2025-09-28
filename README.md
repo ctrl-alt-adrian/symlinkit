@@ -72,6 +72,7 @@ If you don’t pass SOURCE or DESTINATION, you’ll be prompted to pick them wit
 If you don’t specify -o or -m, and the target exists, you’ll be asked interactively.
 
 Flags
+
 ```
 -o → overwrite mode
 
@@ -83,9 +84,9 @@ Flags
 
 --tree → show final destination tree
 
---list [DIR] → list symlinks (default $HOME)
+--list [DIR] → list symlinks (default: $HOME if DIR not provided)
 
---broken [DIR] → list broken symlinks
+--broken [DIR] → list broken symlinks (default: $HOME if DIR not provided)
 
 --overview [DIR] → symlink overview (tree/find)
 

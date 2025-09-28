@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.  
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.1.1] - 2025-09-28
+
+### ✨ Features
+
+- `--list` and `--broken` now default to **$HOME** when no directory is specified.
+- Users can explicitly pass `/` or any directory to scan system-wide or in specific locations.
+
+### 📝 Documentation
+
+- Updated manpage to explicitly state that `--list` and `--broken` default to $HOME.
+- README usage section updated with clearer examples for `--list`, `--broken`, and scanning `/`.
+
+---
+
 ## [1.1] - 2025-09-28
 
 ### ✨ Features
