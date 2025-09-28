@@ -8,9 +8,9 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
 ### ✨ Features
 
 - Added colorized output for `--list`, `--broken`, and `--overview` (fallback mode):
-  - Symlink **path** → green
+  - Symlink **path** → cyan
   - Arrow (`->`) → neutral
-  - Symlink **target** → yellow
+  - Symlink **target** → magenta
 - Simplified `--list` and `--broken` output to `path -> target` format (replacing verbose `ls -l` style).
 - `--overview` now prefers `tree` for symlink visualization by default, falling back to `find` only if `tree` is not installed.
 
