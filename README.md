@@ -1,7 +1,7 @@
 # symlinkit
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/ctrl-alt-adrian/symlinkit)
+![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/ctrl-alt-adrian/symlinkit)
 
 A small command-line tool that makes working with symlinks less of a hassle.  
 It supports interactive directory picking (via [fzf](https://github.com/junegunn/fzf)), recursive linking, overwrite/merge modes, safe dry-runs, and advanced inspection tools to manage existing symlinks on your system.
