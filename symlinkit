@@ -31,7 +31,7 @@
 #   symlinkit --overview ~ --depth 2 --json
 #   symlinkit --count-only ~
 #
-VERSION="1.1.1"
+VERSION="1.1.2"
 
 # --- Dependencies ---
 if ! command -v fzf >/dev/null 2>&1; then
@@ -45,6 +45,8 @@ if ! command -v realpath >/dev/null 2>&1; then
 fi
 
 # --- Colors ---
+PATH_COLOR="\033[0;36m"   # Cyan
+TARGET_COLOR="\033[0;35m" # Magenta
 GREEN="\033[0;32m"
 RED="\033[0;31m"
 YELLOW="\033[0;33m"
@@ -97,7 +99,7 @@ done
 sort_results() {
   case "$sort_by" in
     path) sort ;;
-    target) awk '{print $NF, $0}' | sort | cut -d' ' -f2- ;;
+    target) awk -F' -> ' '{print $2, $0}' | sort | cut -d' ' -f2- ;;
     *) cat ;;
   esac
 }
@@ -112,7 +114,7 @@ if [[ "$list_mode" == true ]]; then
   else
     count=$(find "$dir" -type l 2>/dev/null | wc -l)
     echo "📊 Found symlinks in $dir: $count"
-    find "$dir" -type l -ls 2>/dev/null | sort_results
+    find "$dir" -type l -printf "${PATH_COLOR}%p${RESET} -> ${TARGET_COLOR}%l${RESET}\n" 2>/dev/null | sort_results
   fi
   exit 0
 fi
@@ -127,7 +129,7 @@ if [[ "$broken_mode" == true ]]; then
   else
     count=$(find "$dir" -xtype l 2>/dev/null | wc -l)
     echo "📊 Found broken symlinks in $dir: $count"
-    find "$dir" -xtype l -ls 2>/dev/null | sort_results
+    find "$dir" -xtype l -printf "${PATH_COLOR}%p${RESET} -> ${TARGET_COLOR}%l${RESET}\n" 2>/dev/null | sort_results
   fi
   exit 0
 fi
@@ -151,17 +153,16 @@ if [[ "$overview_mode" == true ]]; then
         2>/dev/null | sort_results | jq -s .
     else
       echo "📂 Symlink overview of $dir (depth=$depth):"
-      tree -L "$depth" -F -p -l -P '*' "$dir"
+      tree -L "$depth" -F -p -l "$dir"
     fi
   else
     echo "⚠️ tree not found, falling back to flat list."
-    find "$dir" -maxdepth "$depth" -type l -ls 2>/dev/null | sort_results
+    find "$dir" -maxdepth "$depth" -type l -printf "${PATH_COLOR}%p${RESET} -> ${TARGET_COLOR}%l${RESET}\n" 2>/dev/null | sort_results
   fi
   exit 0
 fi
 
-# --- Core Symlink Logic (overwrite/merge, unchanged) ---
-# Expand arguments
+# --- Core Symlink Logic (overwrite/merge) ---
 if [[ -n "$1" ]]; then
   src="$1"; shift
 else

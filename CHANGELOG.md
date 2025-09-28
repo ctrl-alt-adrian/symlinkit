@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.  
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.1.2] - 2025-09-28
+
+### ✨ Features
+
+- Added colorized output for `--list`, `--broken`, and `--overview` (fallback mode):
+  - Symlink **path** → green
+  - Arrow (`->`) → neutral
+  - Symlink **target** → yellow
+- Simplified `--list` and `--broken` output to `path -> target` format (replacing verbose `ls -l` style).
+- `--overview` now prefers `tree` for symlink visualization by default, falling back to `find` only if `tree` is not installed.
+
+### 📝 Documentation
+
+- Updated manpage version to **1.1.2**.
+- README examples clarified with default `$HOME` behavior and symlink listing examples.
+
 ## [1.1.1] - 2025-09-28
 
 ### ✨ Features
