@@ -72,7 +72,7 @@ If you don’t pass SOURCE or DESTINATION, you’ll be prompted to pick them wit
 If you don’t specify -o or -m, and the target exists, you’ll be asked interactively.
 
 Flags
-
+```
 -o → overwrite mode
 
 -m → merge mode (recursive)
@@ -100,6 +100,7 @@ Flags
 -h, --help → colorized help text
 
 -v, --version → version info
+```
 
 Examples
 
