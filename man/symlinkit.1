@@ -1,21 +1,24 @@
 .\" Manpage for symlinkit
 .\" Save as symlinkit.1 in ~/.local/share/man/man1/
-.TH SYMLINKIT 1 "September 2025" "1.0" "User Commands"
+.TH SYMLINKIT 1 "September 2025" "1.1" "User Commands"
 .SH NAME
-symlinkit \- flexible symlink helper with fzf + dry-run support
+symlinkit \- flexible symlink helper with fzf, dry-run, and symlink overview tools
 .SH SYNOPSIS
 .B symlinkit
-[OPTIONS] SOURCE DESTINATION
+[OPTIONS] [SOURCE] [DESTINATION]
 .SH DESCRIPTION
 The
 .B symlinkit
-command simplifies creating symbolic links, with interactive selection,
-merge/overwrite modes, and dry-run previews.
+command simplifies creating and inspecting symbolic links, with interactive
+selection, merge/overwrite modes, dry-run previews, and inspection utilities.
 
 If SOURCE or DESTINATION are not provided, fzf will be used to pick them.
 
 If no mode is specified (-o / -m), and the target already exists,
 you will be prompted to choose overwrite, merge, or cancel.
+
+In addition to symlink creation, symlinkit can list existing symlinks, show
+broken symlinks, produce overviews with \fBtree\fR, and output results in JSON.
 
 .SH OPTIONS
 .TP
@@ -32,7 +35,38 @@ Preview actions (conflicts default to skip).
 Preview actions (conflicts default to overwrite).
 .TP
 .B --tree
-Show final destination tree (requires 'tree').
+Show final destination tree (requires \fBtree\fR).
+.TP
+.B --list [DIR]
+List all symlinks under DIR (default: $HOME).
+Interactive view via \fBfzf\fR unless \fB--json\fR is specified.
+.TP
+.B --broken [DIR]
+List only broken symlinks under DIR (default: $HOME).
+Interactive view via \fBfzf\fR unless \fB--json\fR is specified.
+.TP
+.B --overview [DIR]
+Show a symlink overview in tree format (default: $HOME).
+If \fBtree\fR is unavailable, falls back to a flat list with \fBfind\fR.
+.TP
+.B --count-only [DIR]
+Show only the total number of symlinks under DIR (default: $HOME).
+.TP
+.B --depth N
+Limit overview search depth (default: 3).
+.TP
+.B --sort path|target
+Sort results by path or symlink target.
+.TP
+.B --json
+Output results in JSON format (applies to \fB--list\fR, \fB--broken\fR, and
+\fB--overview\fR).
+.TP
+.B -h, --help
+Show a colorized help message.
+.TP
+.B -v, --version
+Show version number.
 
 .SH EXAMPLES
 Overwrite:
@@ -55,9 +89,36 @@ Dry-run with overwrite conflicts and tree:
 symlinkit --dry-run-overwrite -m --tree ~/dotfiles/custom ~/.custom
 .fi
 
+List symlinks in $HOME:
+.nf
+symlinkit --list
+.fi
+
+List broken symlinks in /etc as JSON:
+.nf
+symlinkit --json --broken /etc
+.fi
+
+Symlink overview of ~/bin with depth 2:
+.nf
+symlinkit --overview ~/bin --depth 2
+.fi
+
+Count symlinks in $HOME:
+.nf
+symlinkit --count-only ~
+.fi
+
 .SH AUTHOR
 Written by Adrian Thomas.
 
 .SH SEE ALSO
-ln(1), fzf(1), tree(1)
+ln(1), fzf(1), tree(1), find(1), jq(1)
+
+.SH VERSION
+symlinkit 1.1 (September 2025)
+
+.SH REPORTING BUGS
+Report issues or feature requests at:
+.B https://github.com/ctrl-alt-adrian/symlinkit/issues
 

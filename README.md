@@ -1,11 +1,12 @@
 # symlinkit
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/ctrl-alt-adrian/symlinkit)
 
 A small command-line tool that makes working with symlinks less of a hassle.  
-It supports interactive directory picking (via [fzf](https://github.com/junegunn/fzf)), recursive linking, overwrite/merge modes, and safe dry-runs so you can preview before touching your files.
+It supports interactive directory picking (via [fzf](https://github.com/junegunn/fzf)), recursive linking, overwrite/merge modes, safe dry-runs, and advanced inspection tools to manage existing symlinks on your system.
 
-I originally built this to manage my dotfiles, but it works anywhere you need to symlink directories.
+Originally built to manage dotfiles, it works anywhere you need to symlink directories.
 
 ---
 
@@ -15,7 +16,17 @@ I originally built this to manage my dotfiles, but it works anywhere you need to
 - Merge mode → recursively symlink contents of a directory
 - Overwrite mode → replace existing files/folders
 - Dry-run support → see what _would_ happen before committing
-- Optional `tree` output to show the result
+- `tree` output for destination structure (`--tree`)
+- List symlinks (`--list [DIR]`)
+- List broken symlinks (`--broken [DIR]`)
+- Show symlink overview (`--overview [DIR]`, uses `tree` if available, falls back to `find`)
+- Depth control for overview (`--depth N`, default 3)
+- Count symlinks only (`--count-only [DIR]`)
+- Sorting (`--sort path|target`)
+- JSON output (`--json`) for scripting/automation
+- Integrated `fzf` preview mode for browsing results interactively
+- Colorized `--help` output
+- Version flag (`-v`, `--version`)
 - Includes a man page (`man symlinkit`)
 
 ---
@@ -70,9 +81,23 @@ Flags
 
 --dry-run-overwrite → preview, overwrite conflicts
 
---tree → show final directory tree
+--tree → show final destination tree
 
--h, --help → help text
+--list [DIR] → list symlinks (default $HOME)
+
+--broken [DIR] → list broken symlinks
+
+--overview [DIR] → symlink overview (tree/find)
+
+--depth N → overview depth (default 3)
+
+--count-only [DIR] → count symlinks only
+
+--sort path|target → sort results
+
+--json → JSON output mode
+
+-h, --help → colorized help text
 
 -v, --version → version info
 
@@ -90,10 +115,26 @@ symlinkit --dry-run -m ~/src/project ~/deploy
 
 # Preview merge, overwrite conflicts, show tree
 symlinkit --dry-run-overwrite -m --tree ~/dotfiles/custom ~/.custom
+
+# List symlinks under $HOME
+symlinkit --list
+
+# List broken symlinks in /etc
+symlinkit --broken /etc
+
+# Overview of symlinks in ~/bin at depth 2
+symlinkit --overview ~/bin --depth 2
+
+# Count symlinks in $HOME
+symlinkit --count-only ~
+
+# JSON output of symlinks under /usr/local/bin
+symlinkit --json --list /usr/local/bin
 ```
 
 Requirements
 
-- fzf → for interactive selection
-- tree (optional, for --tree)
-- realpath (from coreutils)
+fzf → required for interactive selection
+tree (optional, for --tree and --overview)
+realpath (from GNU coreutils) → required
+jq→ required for JSON output
