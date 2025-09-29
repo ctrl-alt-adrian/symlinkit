@@ -40,3 +40,7 @@ man/*.1.bak
 CLAUDE.md
 CHATGPT.md
 notes*.md
+
+# Ignore symlinkit test artifacts
+symlinkit.backup
+symlinkit.original

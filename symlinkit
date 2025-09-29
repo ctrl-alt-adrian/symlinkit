@@ -29,7 +29,7 @@
 #
 
 # === CONFIGURATION ===
-VERSION="1.5.0"
+VERSION="1.5.1"
 readonly DEFAULT_DEPTH=3
 
 # === OS DETECTION ===

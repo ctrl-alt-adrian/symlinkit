@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.5.1] - 2025-09-29
+
+### 🛠 Chores
+
+- Removed unintended test artifacts:
+  - **`symlinkit.backup`**
+  - **`symlinkit.original`**
+- These files were created during local testing and are not part of the project.
+- Updated `.gitignore` to prevent re-adding them in the future.
+
+---
+
 ## [1.5.0] - 2025-09-29
 
 ### 🚀 Major Features
