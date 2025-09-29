@@ -27,12 +27,9 @@
 #   -h, --help             Show help message
 #   -v, --version          Show version info
 #
-
-# === CONFIGURATION ===
 VERSION="1.5.0"
-readonly DEFAULT_DEPTH=3
 
-# === OS DETECTION ===
+# --- Detect OS (Linux, macOS, WSL) ---
 case "$(uname -s)" in
   Linux*)   OS="Linux" ;;
   Darwin*)  OS="macOS" ;;
@@ -45,7 +42,10 @@ if [[ "$OS" == "Linux" ]] && { [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qiE "(mi
   IS_WSL=true
 fi
 
-# === COLORS ===
+# --- fzf Detection ---
+has_fzf() { command -v fzf >/dev/null 2>&1; }
+
+# --- Colors ---
 PATH_COLOR="\033[0;36m"
 TARGET_COLOR="\033[0;35m"
 RED="\033[0;31m"
@@ -53,32 +53,9 @@ YELLOW="\033[0;33m"
 GREEN="\033[0;32m"
 RESET="\033[0m"
 
-# === GLOBAL STATE ===
-dry_run=false
-dry_run_overwrite=false
-mode=""
-show_tree=false
-show_tree_verbose=false
-list_mode=false
-list_verbose_mode=false
-broken_mode=false
-count_only=false
-json=false
-sort_by=""
-depth=$DEFAULT_DEPTH
-fix_broken=false
-force_fzf=false
-force_no_fzf=false
-
-linked=0
-overwritten=0
-skipped=0
-
-# === CORE UTILITIES ===
+# --- Helpers ---
+# Error reporting and exit function
 die() { echo -e "$@" >&2; exit 1; }
-has_fzf() { command -v fzf >/dev/null 2>&1; }
-
-trap "echo; die '❌ Cancelled by user'" SIGINT
 
 # Cross-platform path resolution with WSL and macOS support
 realpath_wrap() {
@@ -101,16 +78,9 @@ find_wrap() {
   else find "$@"; fi
 }
 
-# === PATH RESOLUTION ===
-resolve_input_path() {
-  local input_path="$1"
-  # Handle tilde expansion
-  [[ "$input_path" == "~"* ]] && input_path="${input_path/#\~/$HOME}"
-  # Convert to absolute path
-  realpath_wrap "$input_path" 2>/dev/null || echo "$input_path"
-}
+trap "echo; die '❌ Cancelled by user'" SIGINT
 
-# === PERMISSION ERROR HANDLING ===
+# Check for permission errors and display warning
 check_permission_errors() {
   local output="$1"
   local permission_errors
@@ -122,11 +92,8 @@ check_permission_errors() {
   return 1  # No permission errors
 }
 
-# Unified safe find wrapper that handles permission errors consistently
+# Safe find wrapper that handles permission errors consistently
 safe_find() {
-  local print_zero=false
-  [[ "$1" == "--print0" ]] && { print_zero=true; shift; }
-
   local find_output
   find_output=$(find_wrap "$@" 2>&1)
 
@@ -141,272 +108,45 @@ safe_find() {
   if $has_permission_errors; then return 0; else return 1; fi
 }
 
-# === INPUT VALIDATION ===
-validate_directory() { [[ -d "$1" ]]; }
-validate_file() { [[ -f "$1" ]]; }
+# Safe find wrapper for null-separated output (used in merge mode)
+safe_find_print0() {
+  local find_output
+  find_output=$(find_wrap "$@" 2>&1)
 
-get_validated_input() {
-  local prompt="$1"
-  local validation_func="$2"
-  local error_message="$3"
+  # Check for permission errors and warn if found
+  local has_permission_errors=false
+  if check_permission_errors "$find_output"; then has_permission_errors=true; fi
 
-  while true; do
-    printf "%s: " "$prompt" >&2
-    if ! read -r user_input; then
-      echo >&2; echo "❌ No input received" >&2; return 1
-    fi
+  # Filter out permission denied errors and return clean results
+  # Note: find -print0 produces null-separated output, so we preserve that
+  echo "$find_output" | grep -v "Permission denied"
 
-    [[ -z "$user_input" ]] && { echo "❌ Please enter a path" >&2; continue; }
-
-    user_input=$(resolve_input_path "$user_input")
-
-    if "$validation_func" "$user_input"; then
-      echo "$user_input"; return 0
-    else
-      echo "❌ $error_message '$user_input'. Please try again." >&2
-    fi
-  done
+  # Return status indicates if there were permission errors
+  if $has_permission_errors; then return 0; else return 1; fi
 }
 
-# === FZF INTEGRATION ===
-use_fzf() {
-  if $force_no_fzf; then return 1; fi
-  if $force_fzf; then return 0; fi
-  has_fzf
-}
+# --- Modes ---
+dry_run=false
+dry_run_overwrite=false
+mode=""
+show_tree=false
+show_tree_verbose=false
+list_mode=false
+list_verbose_mode=false
+broken_mode=false
+count_only=false
+json=false
+sort_by=""
+depth=3
+fix_broken=false
+force_fzf=false
+force_no_fzf=false
 
-# Manual directory selection fallback
-manual_select_directory() {
-  local search_path="$1"
-  local mindepth="${2:-0}"
-  local maxdepth="${3:-5}"
-  local prompt="${4:-Specify a directory}"
+linked=0
+overwritten=0
+skipped=0
 
-  get_validated_input "$prompt" "validate_directory" "Directory does not exist:"
-}
-
-# Manual file selection fallback
-manual_select_file() {
-  local search_path="$1"
-  local prompt="${2:-Specify a file}"
-
-  get_validated_input "$prompt" "validate_file" "File does not exist:"
-}
-
-# Hybrid directory selection (fzf or manual)
-select_directory() {
-  local search_path="$1"
-  local mindepth="${2:-0}"
-  local maxdepth="${3:-5}"
-  local prompt="${4:-Select a directory}"
-
-  if use_fzf; then
-    find_wrap "$search_path" -mindepth "$mindepth" -maxdepth "$maxdepth" -type d 2>/dev/null \
-      | fzf --prompt="$prompt > " --preview 'ls -la --color=always {}' --preview-window=down:15
-  else
-    # Convert "Select" to "Specify" for manual input
-    local manual_prompt="${prompt/Select/Specify}"
-    manual_select_directory "$search_path" "$mindepth" "$maxdepth" "$manual_prompt"
-  fi
-}
-
-# Hybrid file selection (fzf or manual)
-select_file() {
-  local search_path="$1"
-  local prompt="${2:-Select a file}"
-
-  if use_fzf; then
-    find_wrap "$search_path" -type f 2>/dev/null | fzf --prompt="$prompt > "
-  else
-    # Convert "Select" to "Specify" for manual input
-    local manual_prompt="${prompt/Select/Specify}"
-    manual_select_file "$search_path" "$manual_prompt"
-  fi
-}
-
-# === OUTPUT FORMATTING ===
-sort_results() {
-  case "$sort_by" in
-    path) sort ;;
-    target) awk -F' -> ' '{print $2, $0}' | sort | cut -d' ' -f2- ;;
-    *) cat ;;
-  esac
-}
-
-print_symlink() {
-  local path="$1" target="$2"
-  # Only resolve target if it's not already an absolute path
-  # For relative symlink targets, resolve them relative to the symlink's directory
-  if [[ -n "$target" && "$target" != /* ]]; then
-    local symlink_dir="$(dirname "$path")"
-    target=$(cd "$symlink_dir" && realpath_wrap "$target" 2>/dev/null || echo "$target")
-  fi
-  echo -e "${PATH_COLOR}${path}${RESET} -> ${TARGET_COLOR}${target}${RESET}"
-}
-
-print_symlink_verbose() { ls -l "$1"; }
-
-print_symlink_json() {
-  local path="$1" target="$2"
-  # Only resolve target if it's not already an absolute path
-  # For relative symlink targets, resolve them relative to the symlink's directory
-  if [[ -n "$target" && "$target" != /* ]]; then
-    local symlink_dir="$(dirname "$path")"
-    target=$(cd "$symlink_dir" && realpath_wrap "$target" 2>/dev/null || echo "$target")
-  fi
-  printf '{"path":"%s","target":"%s"}\n' "$path" "$target"
-}
-
-
-# Count display formatter
-display_count() {
-  local count="$1"
-  local item_type="$2"
-  local directory="$3"
-
-  local plural_s=""
-  [[ "$count" -ne 1 ]] && plural_s="s"
-
-  echo -e "📊 Found ${GREEN}${count}${RESET} ${item_type}${plural_s} in ${TARGET_COLOR}${directory}${RESET}"
-}
-
-# Tree display function
-display_tree() {
-  local dir="$1"
-  local verbose="${2:-false}"
-  local depth="${3:-$DEFAULT_DEPTH}"
-
-  if command -v tree >/dev/null 2>&1; then
-    local tree_args=(-L "$depth" -F)
-    $verbose && tree_args+=(-p)
-    local verbose_text=""
-    $verbose && verbose_text=" (verbose"
-    echo "📂 Tree view of $dir${verbose_text}, depth=$depth):"
-    tree "${tree_args[@]}" "$dir"
-  else
-    echo "⚠️ tree not found, falling back to flat symlink list."
-    fallback_tree_display "$dir" "$depth"
-  fi
-}
-
-# Fallback tree display using find
-fallback_tree_display() {
-  local dir="$1"
-  local depth="$2"
-
-  local tree_output
-  tree_output=$(safe_find "$dir" -maxdepth "$depth" -type l)
-  echo "$tree_output" | while read -r l; do
-    print_symlink "$l" "$(readlink "$l")"
-  done | sort_results
-}
-
-# === MODE HANDLERS ===
-
-# Find operations for different modes
-find_all_symlinks() {
-  safe_find "$1" -type l
-}
-
-find_broken_symlinks() {
-  local dir="$1"
-  local broken_output
-  broken_output=$(safe_find "$dir" -type l)
-  local has_permission_errors=$?
-
-  local broken_symlinks
-  broken_symlinks=$(echo "$broken_output" | while read -r l; do [[ ! -e "$l" ]] && echo "$l"; done)
-
-  echo "$broken_symlinks"
-  return $has_permission_errors
-}
-
-# Output handlers for different modes
-handle_list_output() {
-  local symlinks="$1"
-  local dir="$2"
-  local has_permission_errors="$3"
-
-  local count
-  count=$(echo "$symlinks" | wc -l)
-
-  [[ "$count" -eq 0 ]] && {
-    if $has_permission_errors; then
-      echo "⚠️ Could not scan all directories due to permissions. No symlinks found in accessible areas."
-    else
-      echo "❌ No symlinks found in this directory"
-    fi
-    exit 0
-  }
-
-  if $json; then
-    if command -v jq >/dev/null 2>&1 && echo '[]' | jq . >/dev/null 2>&1; then
-      echo "$symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | jq -s .
-    else
-      echo "["
-      echo "$symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | sed '$!s/$/,/'
-      echo "]"
-    fi
-  else
-    display_count "$count" "symlink" "$dir"
-    if [[ "$list_verbose_mode" == true ]]; then
-      echo "$symlinks" | while read -r l; do print_symlink_verbose "$l"; done | sort_results
-    else
-      echo "$symlinks" | while read -r l; do print_symlink "$l" "$(readlink "$l")"; done | sort_results
-    fi
-  fi
-  exit 0
-}
-
-handle_broken_output() {
-  local broken_symlinks="$1"
-  local dir="$2"
-  local has_permission_errors="$3"
-
-  local broken_count
-  broken_count=$(echo "$broken_symlinks" | wc -l)
-
-  if [[ "$broken_count" -eq 0 ]]; then
-    if $has_permission_errors; then
-      echo "⚠️ Could not scan all directories due to permissions. No broken symlinks found in accessible areas."
-    else
-      echo "✅ You're good, no broken symlinks found in $dir"
-    fi
-    exit 0
-  fi
-
-  if $json; then
-    if command -v jq >/dev/null 2>&1 && echo '[]' | jq . >/dev/null 2>&1; then
-      echo "$broken_symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | jq -s .
-    else
-      echo "["
-      echo "$broken_symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | sed '$!s/$/,/'
-      echo "]"
-    fi
-  else
-    display_count "$broken_count" "broken symlink" "$dir"
-    echo "$broken_symlinks" | while read -r l; do print_symlink "$l" "$(readlink "$l")"; done | sort_results
-  fi
-  exit 0
-}
-
-handle_count_output() {
-  local symlinks="$1"
-  local dir="$2"
-  local has_permission_errors="$3"
-
-  local count
-  count=$(echo "$symlinks" | wc -l)
-
-  if $json; then
-    printf '{"directory":"%s","count":%d}\n' "$dir" "$count"
-  else
-    echo -e "🔢 ${GREEN}${count}${RESET} symlink$([[ "$count" -ne 1 ]] && echo "s") in ${TARGET_COLOR}${dir}${RESET}"
-  fi
-  exit 0
-}
-
-# === FLAG PARSING ===
+# --- Parse Flags ---
 while [[ $# -gt 0 && "$1" == -* ]]; do
   case "$1" in
     --dry-run) dry_run=true ;;
@@ -445,9 +185,147 @@ if $force_fzf && ! has_fzf; then
   die "❌ fzf not found but --fzf flag was specified. Install with your package manager."
 fi
 
-# === MODE EXECUTION ===
+# --- Helpers ---
+# Determine if we should use fzf for interactive selection
+use_fzf() {
+  if $force_no_fzf; then return 1; fi
+  if $force_fzf; then return 0; fi
+  has_fzf
+}
 
-# List / List-Verbose mode
+# Manual directory selection fallback
+manual_select_directory() {
+  local search_path="$1"
+  local mindepth="${2:-0}"
+  local maxdepth="${3:-5}"
+  local prompt="${4:-Specify a directory}"
+
+  while true; do
+    printf "%s: " "$prompt" >&2
+    if ! read -r dir_input; then
+      echo >&2
+      echo "❌ No input received" >&2
+      return 1
+    fi
+
+    if [[ -z "$dir_input" ]]; then
+      echo "❌ Please enter a directory path" >&2
+      continue
+    fi
+
+    # Handle tilde expansion
+    if [[ "$dir_input" == "~"* ]]; then
+      dir_input="${dir_input/#\~/$HOME}"
+    fi
+
+    # Convert to absolute path
+    dir_input=$(realpath_wrap "$dir_input" 2>/dev/null || echo "$dir_input")
+
+    if [[ -d "$dir_input" ]]; then
+      echo "$dir_input"
+      return 0
+    else
+      echo "❌ Directory '$dir_input' does not exist. Please try again." >&2
+    fi
+  done
+}
+
+# Manual file selection fallback
+manual_select_file() {
+  local search_path="$1"
+  local prompt="${2:-Specify a file}"
+
+  while true; do
+    printf "%s: " "$prompt" >&2
+    if ! read -r file_input; then
+      echo >&2
+      echo "❌ No input received" >&2
+      return 1
+    fi
+
+    if [[ -z "$file_input" ]]; then
+      echo "❌ Please enter a file path" >&2
+      continue
+    fi
+
+    # Handle tilde expansion
+    if [[ "$file_input" == "~"* ]]; then
+      file_input="${file_input/#\~/$HOME}"
+    fi
+
+    # Convert to absolute path
+    file_input=$(realpath_wrap "$file_input" 2>/dev/null || echo "$file_input")
+
+    if [[ -f "$file_input" ]]; then
+      echo "$file_input"
+      return 0
+    else
+      echo "❌ File '$file_input' does not exist. Please try again." >&2
+    fi
+  done
+}
+
+# Hybrid directory selection (fzf or manual)
+select_directory() {
+  local search_path="$1"
+  local mindepth="${2:-0}"
+  local maxdepth="${3:-5}"
+  local prompt="${4:-Select a directory}"
+
+  if use_fzf; then
+    find_wrap "$search_path" -mindepth "$mindepth" -maxdepth "$maxdepth" -type d 2>/dev/null \
+      | fzf --prompt="$prompt > " --preview 'ls -la --color=always {}' --preview-window=down:15
+  else
+    # Convert "Select" to "Specify" for manual input
+    local manual_prompt="${prompt/Select/Specify}"
+    manual_select_directory "$search_path" "$mindepth" "$maxdepth" "$manual_prompt"
+  fi
+}
+
+# Hybrid file selection (fzf or manual)
+select_file() {
+  local search_path="$1"
+  local prompt="${2:-Select a file}"
+
+  if use_fzf; then
+    find_wrap "$search_path" -type f 2>/dev/null | fzf --prompt="$prompt > "
+  else
+    # Convert "Select" to "Specify" for manual input
+    local manual_prompt="${prompt/Select/Specify}"
+    manual_select_file "$search_path" "$manual_prompt"
+  fi
+}
+
+sort_results() {
+  case "$sort_by" in
+    path) sort ;;
+    target) awk -F' -> ' '{print $2, $0}' | sort | cut -d' ' -f2- ;;
+    *) cat ;;
+  esac
+}
+print_symlink() {
+  local path="$1" target="$2"
+  # Only resolve target if it's not already an absolute path
+  # For relative symlink targets, resolve them relative to the symlink's directory
+  if [[ -n "$target" && "$target" != /* ]]; then
+    local symlink_dir="$(dirname "$path")"
+    target=$(cd "$symlink_dir" && realpath_wrap "$target" 2>/dev/null || echo "$target")
+  fi
+  echo -e "${PATH_COLOR}${path}${RESET} -> ${TARGET_COLOR}${target}${RESET}"
+}
+print_symlink_verbose() { ls -l "$1"; }
+print_symlink_json() {
+  local path="$1" target="$2"
+  # Only resolve target if it's not already an absolute path
+  # For relative symlink targets, resolve them relative to the symlink's directory
+  if [[ -n "$target" && "$target" != /* ]]; then
+    local symlink_dir="$(dirname "$path")"
+    target=$(cd "$symlink_dir" && realpath_wrap "$target" 2>/dev/null || echo "$target")
+  fi
+  printf '{"path":"%s","target":"%s"}\n' "$path" "$target"
+}
+
+# --- List / List-Verbose ---
 if [[ "$list_mode" == true || "$list_verbose_mode" == true ]]; then
   if [[ -n "${1:-}" && -d "$1" ]]; then dir="$1"; shift
   else
@@ -456,66 +334,137 @@ if [[ "$list_mode" == true || "$list_verbose_mode" == true ]]; then
     dir=$(select_directory "$HOME" 0 5 "$prompt")
     [[ -z "$dir" ]] && die "❌ No directory selected."
   fi
-  find_results=$(find_all_symlinks "$dir")
-  has_permission_errors=$?
-  handle_list_output "$find_results" "$dir" $has_permission_errors
+  list_output=$(find_wrap "$dir" -type l 2>&1)
+  has_permission_errors=false
+  if check_permission_errors "$list_output"; then has_permission_errors=true; fi
+  symlinks=$(echo "$list_output" | grep -v "Permission denied")
+  count=$(echo "$symlinks" | wc -l)
+  [[ "$count" -eq 0 ]] && {
+    if $has_permission_errors; then
+      echo "⚠️ Could not scan all directories due to permissions. No symlinks found in accessible areas."
+    else
+      echo "❌ No symlinks found in this directory"
+    fi
+    exit 0
+  }
+  if $json; then
+    if command -v jq >/dev/null 2>&1; then
+      echo "$symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | jq -s .
+    else
+      echo "["
+      echo "$symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | sed '$!s/$/,/'
+      echo "]"
+    fi
+  else
+    if [[ "$count" -eq 1 ]]; then
+      echo -e "📊 Found ${GREEN}1${RESET} symlink in ${TARGET_COLOR}${dir}${RESET}:"
+    else
+      echo -e "📊 Found ${GREEN}${count}${RESET} symlinks in ${TARGET_COLOR}${dir}${RESET}:"
+    fi
+    if [[ "$list_verbose_mode" == true ]]; then
+      echo "$symlinks" | while read -r l; do print_symlink_verbose "$l"; done | sort_results
+    else
+      echo "$symlinks" | while read -r l; do print_symlink "$l" "$(readlink "$l")"; done | sort_results
+    fi
+  fi; exit 0
 fi
 
-# Broken symlinks mode
+# --- Broken ---
 if [[ "$broken_mode" == true ]]; then
   if [[ -n "${1:-}" && -d "$1" ]]; then dir="$1"; shift
   else
     dir=$(select_directory "$HOME" 0 5 "Select a directory to check for broken symlinks")
     [[ -z "$dir" ]] && die "❌ No directory selected."
   fi
-  find_results=$(find_broken_symlinks "$dir")
-  has_permission_errors=$?
-  handle_broken_output "$find_results" "$dir" $has_permission_errors
+  broken_output=$(find_wrap "$dir" -type l 2>&1)
+  has_permission_errors=false
+  if check_permission_errors "$broken_output"; then has_permission_errors=true; fi
+  broken_symlinks=$(echo "$broken_output" | grep -v "Permission denied" | while read -r l; do [[ ! -e "$l" ]] && echo "$l"; done)
+  broken_count=$(echo "$broken_symlinks" | wc -l)
+  if [[ "$broken_count" -eq 0 ]]; then
+    if $has_permission_errors; then
+      echo "⚠️ Could not scan all directories due to permissions. No broken symlinks found in accessible areas."
+    else
+      echo "✅ You're good, no broken symlinks found in $dir"
+    fi
+    exit 0
+  fi
+  if $json; then
+    if command -v jq >/dev/null 2>&1; then
+      echo "$broken_symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | jq -s .
+    else
+      echo "["
+      echo "$broken_symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | sed '$!s/$/,/'
+      echo "]"
+    fi
+  else
+    if [[ "$broken_count" -eq 1 ]]; then
+      echo -e "📊 Found ${GREEN}1${RESET} broken symlink in ${TARGET_COLOR}${dir}${RESET}"
+    else
+      echo -e "📊 Found ${GREEN}${broken_count}${RESET} broken symlinks in ${TARGET_COLOR}${dir}${RESET}"
+    fi
+    echo "$broken_symlinks" | while read -r l; do print_symlink "$l" "$(readlink "$l")"; done | sort_results
+  fi
+  exit 0
 fi
 
-# Count only mode
+# --- Count Only ---
 if [[ "$count_only" == true ]]; then
   if [[ -n "${1:-}" && -d "$1" ]]; then dir="$1"; shift
   else
     dir=$(select_directory "$HOME" 0 5 "Select a destination directory to count symlinks")
     [[ -z "$dir" ]] && die "❌ No directory selected."
   fi
-  find_results=$(find_all_symlinks "$dir")
-  has_permission_errors=$?
-  handle_count_output "$find_results" "$dir" $has_permission_errors
-fi
-
-# Tree modes
-if [[ "$show_tree" == true || "$show_tree_verbose" == true ]]; then
-  dir=""
-  if [[ -n "${1:-}" && -d "$1" ]]; then
-    dir="$1"
-    shift
+  count_output=$(find_wrap "$dir" -type l 2>&1)
+  has_permission_errors=false
+  if check_permission_errors "$count_output"; then has_permission_errors=true; fi
+  count=$(echo "$count_output" | grep -c -v "Permission denied")
+  if $json; then
+    printf '{"directory":"%s","count":%d}\n' "$dir" "$count"
   else
-    dir=$(select_directory "$HOME" 0 5 "Select a directory to display tree")
-    [[ -z "$dir" ]] && die "❌ No directory selected."
+    if [[ "$count" -eq 1 ]]; then
+      echo -e "🔢 ${GREEN}1${RESET} symlink in ${TARGET_COLOR}${dir}${RESET}"
+    else
+      echo -e "🔢 ${GREEN}${count}${RESET} symlinks in ${TARGET_COLOR}${dir}${RESET}"
+    fi
   fi
-  display_tree "$dir" "$show_tree_verbose" "$depth"
   exit 0
 fi
 
-# Fix broken symlinks mode
+# --- Tree / Tree-Verbose ---
+if [[ "$show_tree" == true || "$show_tree_verbose" == true ]]; then
+  if [[ -n "${1:-}" && -d "$1" ]]; then dir="$1"; shift
+  else
+    prompt="Select a directory to display tree"
+    [[ "$show_tree_verbose" == true ]] && prompt+=" (verbose)"
+    dir=$(select_directory "$HOME" 0 5 "$prompt")
+    [[ -z "$dir" ]] && die "❌ No directory selected."
+  fi
+  if command -v tree >/dev/null 2>&1; then
+    if [[ "$show_tree_verbose" == true ]]; then
+      echo "📂 Tree view of $dir (verbose, depth=$depth):"; tree -L "$depth" -F -p "$dir"
+    else
+      echo "📂 Tree view of $dir (depth=$depth):"; tree -L "$depth" -F "$dir"
+    fi
+  else
+    echo "⚠️ tree not found, falling back to flat symlink list."
+    tree_output=$(find_wrap "$dir" -maxdepth "$depth" -type l 2>&1)
+    check_permission_errors "$tree_output" >/dev/null || true  # Just show warning, don't store result
+    echo "$tree_output" | grep -v "Permission denied" | while read -r l; do print_symlink "$l" "$(readlink "$l")"; done | sort_results
+  fi; exit 0
+fi
+
+# --- Fix Broken ---
 if [[ "$fix_broken" == true ]]; then
-  dir=""
-  if [[ -n "${1:-}" && -d "$1" ]]; then
-    dir="$1"
-    shift
+  if [[ -n "${1:-}" && -d "$1" ]]; then dir="$1"; shift
   else
     dir=$(select_directory "$HOME" 0 5 "Select a directory to fix broken symlinks")
     [[ -z "$dir" ]] && die "❌ No directory selected."
   fi
-
-  local fix_results
-  fix_results=$(find_broken_symlinks "$dir")
-  local has_permission_errors=$?
-
-  mapfile -t broken_links < <(echo "$fix_results")
-
+  fix_output=$(find_wrap "$dir" -type l 2>&1)
+  has_permission_errors=false
+  if check_permission_errors "$fix_output"; then has_permission_errors=true; fi
+  mapfile -t broken_links < <(echo "$fix_output" | grep -v "Permission denied" | while read -r l; do [[ ! -e "$l" ]] && echo "$l"; done)
   if [[ "${#broken_links[@]}" -eq 0 ]]; then
     if $has_permission_errors; then
       echo "⚠️ Could not scan all directories due to permissions. No broken symlinks found in accessible areas."
@@ -524,10 +473,8 @@ if [[ "$fix_broken" == true ]]; then
     fi
     exit 0
   fi
-
-  local deleted=0 updated=0 skipped_count=0
+  deleted=0; updated=0; skipped_count=0
   for link in "${broken_links[@]}"; do
-    [[ -z "$link" ]] && continue
     target=$(readlink "$link"); print_symlink "$link" "$target"
     printf "[d]elete / [u]pdate / [s]kip > "; read -r -n1 action; echo
     case "$action" in
@@ -559,7 +506,7 @@ if [[ "$fix_broken" == true ]]; then
   exit 0
 fi
 
-# === CORE SYMLINK LOGIC ===
+# --- Core Symlink Logic ---
 if [[ -n "${1:-}" ]]; then src="$1"; shift
 else
   src=$(select_directory "$HOME" 1 5 "Select source directory")
@@ -588,9 +535,10 @@ fi
 
 if [[ "$mode" == "merge" ]]; then
   mkdir -p -- "$target"; overwrite_all=false
-  merge_output=$(safe_find --print0 "$src" -print0)
-  has_permission_errors=$?
-  mapfile -d '' items < <(echo "$merge_output" | tr '\n' '\0')
+  merge_output=$(find_wrap "$src" -print0 2>&1)
+  has_permission_errors=false
+  if check_permission_errors "$merge_output"; then has_permission_errors=true; fi
+  mapfile -d '' items < <(echo "$merge_output" | grep -v "Permission denied" | tr '\n' '\0')
   for item in "${items[@]}"; do [[ "$item" == "$src" ]] && continue
     rel="${item#"$src"/}"; dest_item="$target/$rel"
     if [[ -d "$item" ]]; then $dry_run || mkdir -p -- "$dest_item"
@@ -626,10 +574,25 @@ if [[ "$mode" == "merge" ]]; then
   done
 fi
 
-# === END OUTPUT ===
+# --- End Output ---
 if $dry_run; then
   echo -e "(${YELLOW}Dry run:${RESET} no changes applied)"
   echo -e "📊 Summary: ${GREEN}${linked}${RESET} would link, ${RED}${overwritten}${RESET} would overwrite, ${YELLOW}${skipped}${RESET} would skip"
 elif [[ "$show_tree" == true || "$show_tree_verbose" == true ]]; then
-  display_tree "$dest" "$show_tree_verbose" "$depth"
+  dir="$dest"
+  if command -v tree >/dev/null 2>&1; then
+    if [[ "$show_tree_verbose" == true ]]; then
+      echo "📂 Tree view of $dir (verbose, depth=$depth):"; tree -L "$depth" -F -p "$dir"
+    else
+      echo "📂 Tree view of $dir (depth=$depth):"; tree -L "$depth" -F "$dir"
+    fi
+  else
+    echo "⚠️ tree not found, falling back to flat symlink list."
+    end_tree_output=$(find_wrap "$dir" -maxdepth "$depth" -type l 2>&1)
+    check_permission_errors "$end_tree_output" >/dev/null || true  # Just show warning, don't store result
+    echo "$end_tree_output" | grep -v "Permission denied" | while read -r l; do
+      print_symlink "$l" "$(readlink "$l")"
+    done | sort_results
+  fi
 fi
+

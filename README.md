@@ -6,10 +6,10 @@
 ![macOS](https://img.shields.io/badge/OS-macOS-lightgrey?logo=apple)
 ![WSL](https://img.shields.io/badge/OS-WSL-blue?logo=windows)
 
-A small command-line tool that makes working with symlinks less of a hassle.  
-It supports interactive directory picking (via [fzf](https://github.com/junegunn/fzf)), recursive linking, overwrite/merge modes, safe dry-runs, and advanced inspection tools to manage existing symlinks on your system.
+A small command-line tool that makes working with symlinks less of a hassle.
+It supports **intelligent interactive selection** (auto-detects [fzf](https://github.com/junegunn/fzf) with manual fallback), recursive linking, overwrite/merge modes, safe dry-runs, and advanced inspection tools to manage existing symlinks on your system.
 
-Originally built to manage dotfiles, it works anywhere you need to symlink directories.
+Originally built to manage dotfiles, it works anywhere you need to symlink directories. **Works with or without fzf** - gracefully falls back to manual prompts when fzf isn't available.
 
 ## Table of Contents
 
@@ -28,7 +28,8 @@ Originally built to manage dotfiles, it works anywhere you need to symlink direc
 
 ## Features
 
-- Interactive source/destination picking with `fzf`
+- **Smart Interactive Selection** → Auto-detects fzf, falls back to manual prompts if not available
+- **fzf Control** → Force fzf usage (`--fzf`) or disable it (`--no-fzf`) as needed
 - Merge mode → recursively symlink directory contents
 - Overwrite mode → replace existing files/folders
 - Dry-run support → see what _would_ happen before committing
@@ -97,8 +98,11 @@ Then:
 man symlinkit
 ```
 
-If you don’t pass SOURCE or DESTINATION, you’ll be prompted to pick them with fzf.  
-If you don’t specify -o or -m, and the target exists, you’ll be asked interactively.
+If you don't pass SOURCE or DESTINATION, you'll be prompted to pick them interactively:
+- **With fzf** (if available): Interactive fuzzy finder with preview
+- **Without fzf**: Manual prompts asking you to type directory paths
+
+If you don't specify -o or -m, and the target exists, you'll be asked interactively.
 
 ---
 
@@ -109,6 +113,8 @@ If you don’t specify -o or -m, and the target exists, you’ll be asked intera
 -m → merge mode (recursive)
 --dry-run → preview, skip conflicts
 --dry-run-overwrite → preview, overwrite conflicts
+--fzf → force fzf usage (error if not installed)
+--no-fzf → disable fzf, use manual prompts only
 --tree [DIR] → minimal tree view (symlink arrows only; standalone or after linking)
 --tree-verbose [DIR] → verbose tree view (permissions + symlink arrows; standalone or after linking)
 --list [DIR] → list symlinks (default: $HOME if DIR not provided)
@@ -160,6 +166,12 @@ symlinkit --json --broken ~/bin
 # JSON count of symlinks
 symlinkit --json --count-only ~/projects
 
+# Use fzf even if system settings disable it
+symlinkit --fzf --list
+
+# Force manual prompts even if fzf is available
+symlinkit --no-fzf --broken ~/dotfiles
+
 # Minimal tree of ~/.config
 symlinkit --tree ~/.config
 
@@ -198,8 +210,7 @@ chmod +x *.sh
 
 ### Test Requirements
 
-- **Required**: `fzf` (for interactive functionality)
-- **Optional**: `tree`, `jq` (tests gracefully skip missing dependencies)
+- **Optional**: `fzf`, `tree`, `jq` (tests gracefully skip missing dependencies)
 - **Supported OS**: Linux, macOS (including WSL)
 - **Unsupported**: Windows native (tests will skip with clear messaging)
 
@@ -301,10 +312,11 @@ Found a bug or have a feature request? We'd love to hear from you!
 
 ## Requirements
 
-- fzf → required for interactive selection
-- realpath → required (`grealpath` on macOS via Homebrew)
-- tree → optional, for `--tree` and `--tree-verbose`
-- jq → optional, for `--json` (fallback formatting available without jq)
+- **Required**: None! symlinkit works out-of-the-box
+- **realpath** → Usually pre-installed (`grealpath` on macOS via Homebrew)
+- **fzf** → Optional, for enhanced interactive selection (fallback to manual prompts)
+- **tree** → Optional, for `--tree` and `--tree-verbose`
+- **jq** → Optional, for `--json` (fallback formatting available without jq)
 
 **OS Notes:**
 

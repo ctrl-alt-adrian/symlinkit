@@ -1,18 +1,22 @@
 .\" Manpage for symlinkit
 .\" Save as symlinkit.1 in ~/.local/share/man/man1/
-.TH SYMLINKIT 1 "September 2025" "1.4.0" "User Commands"
+.TH SYMLINKIT 1 "September 2025" "1.5.0" "User Commands"
 .SH NAME
-symlinkit \- flexible symlink helper with fzf, dry-run, and symlink overview tools
+symlinkit \- flexible symlink helper with intelligent fzf fallback, dry-run, and symlink overview tools
 .SH SYNOPSIS
 .B symlinkit
 [OPTIONS] [SOURCE] [DESTINATION]
 .SH DESCRIPTION
 The
 .B symlinkit
-command simplifies creating and inspecting symbolic links, with interactive
-selection, merge/overwrite modes, dry-run previews, and inspection utilities.
+command simplifies creating and inspecting symbolic links, with intelligent
+interactive selection, merge/overwrite modes, dry-run previews, and inspection utilities.
 
-If SOURCE or DESTINATION are not provided, fzf will be used to pick them.
+If SOURCE or DESTINATION are not provided, you will be prompted interactively:
+.br
+\- With \fBfzf\fR (if available): Interactive fuzzy finder with preview
+.br
+\- Without \fBfzf\fR: Manual prompts for typing directory paths
 
 If no mode is specified (-o / -m), and the target already exists,
 you will be prompted to choose overwrite, merge, or cancel.
@@ -33,6 +37,14 @@ Preview actions (conflicts default to skip).
 .TP
 .B --dry-run-overwrite
 Preview actions (conflicts default to overwrite).
+.TP
+.B --fzf
+Force fzf usage (error if not installed). Use this for scripts requiring
+consistent interactive behavior.
+.TP
+.B --no-fzf
+Disable fzf and use manual prompts only, even if fzf is available.
+Useful for minimal environments or when scripting requires text-based input.
 .TP
 .B --tree
 Show a minimal directory tree (symlink arrows only).  
@@ -124,6 +136,16 @@ Merge contents:
 symlinkit -m ~/dotfiles/scripts ~/bin
 .fi
 
+Force fzf usage:
+.nf
+symlinkit --fzf --list
+.fi
+
+Use manual prompts only:
+.nf
+symlinkit --no-fzf --broken ~/dotfiles
+.fi
+
 .SH TESTING
 symlinkit includes a comprehensive test suite for validation across different environments.
 
@@ -159,7 +181,7 @@ Written by Adrian Thomas.
 ln(1), fzf(1), tree(1), find(1), jq(1)
 
 .SH VERSION
-symlinkit 1.4.1 (September 2025)
+symlinkit 1.5.0 (September 2025)
 
 .SH REPORTING BUGS
 Report issues or feature requests at:

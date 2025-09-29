@@ -3,6 +3,56 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.5.0] - 2025-09-29
+
+### 🚀 Major Features
+
+- **Intelligent fzf Fallback System**: symlinkit now works seamlessly with or without fzf
+  - **Auto-detection**: Automatically detects fzf availability and uses it when present
+  - **Manual fallback**: Graceful fallback to text input prompts when fzf is unavailable
+  - **Smart prompts**: Changes from "Select..." to "Specify..." for manual input modes
+  - **Universal compatibility**: All interactive modes work with both fzf and manual input
+
+- **fzf Control Flags**: New flags for fine-grained control over interactive behavior
+  - **`--fzf`**: Force fzf usage, error if not installed (for scripts requiring consistent UX)
+  - **`--no-fzf`**: Disable fzf even if available, force manual prompts (for minimal environments)
+  - **Backwards compatibility**: Default behavior unchanged for existing users
+
+### 🔧 Improvements
+
+- **Robust path resolution**: Fixed potential issues with relative symlink target resolution
+  - Relative targets now resolve correctly relative to their symlink directory
+  - Prevents incorrect `/root` path prefixes in symlink target display
+  - Maintains absolute path handling for existing functionality
+
+- **Better error handling**: Enhanced input validation for manual selection modes
+  - EOF detection prevents infinite loops when stdin is exhausted
+  - Clear error messages for invalid directory paths
+  - Tilde expansion works correctly in manual input mode
+
+- **Enhanced user experience**: Improved prompts and feedback
+  - Manual selection prompts are more intuitive and informative
+  - Better error recovery and retry mechanisms
+  - Consistent behavior across all interactive modes
+
+### 🐛 Fixes
+
+- **Critical path resolution**: Fixed symlink target display incorrectly showing `/root` prefixes
+- **Input handling**: Fixed infinite loops in manual selection when input is piped
+- **EOF detection**: Manual prompts now properly handle end-of-input scenarios
+- **Relative path resolution**: Symlink targets resolve relative to correct base directory
+
+### 📝 Documentation
+
+- **README.md**: Updated with new fzf fallback features and control flags
+- **Requirements**: Updated to reflect that fzf is now optional, not required
+- **Examples**: Added examples showing `--fzf` and `--no-fzf` usage patterns
+
+### 🎯 Breaking Changes
+
+- **None**: All changes are backwards compatible
+- **Requirements**: fzf is now optional instead of required (reduces barrier to entry)
+
 ## [1.4.1] - 2025-09-29
 
 ### 📝 Documentation
