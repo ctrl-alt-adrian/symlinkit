@@ -1,7 +1,42 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.  
+All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
+
+## [1.4.0] - 2025-09-29
+
+### 🚀 Major Features
+
+- **Enhanced JSON support**: `--json` flag now works with all inspection modes (`--list`, `--broken`, `--count-only`).
+- **Smart JSON defaults**: `symlinkit --json [DIR]` automatically enables list mode for read-only JSON output.
+- **JSON fallback formatting**: Works without `jq` dependency using built-in formatting.
+- **Test generation system**: Added `generate-tests.sh` to create comprehensive test suites locally without cluttering the repository.
+
+### 🔧 Improvements
+
+- **Consistent permission handling**: Added `check_permission_errors()`, `safe_find()`, and `safe_find_print0()` helper functions.
+- **Enhanced error reporting**: All modes now consistently handle and report permission errors.
+- **DRY code principles**: Unified permission handling across all operations.
+- **Better helper organization**: All helper functions properly documented and organized.
+
+### 🐛 Fixes
+
+- **Critical JSON behavior**: Fixed `--json` flag incorrectly triggering symlink creation instead of read-only listing.
+- **Interactive mode logic**: Fixed `--json` with directory arguments no longer prompting for directory selection.
+- **Path resolution**: Fixed `realpath_wrap()` backslash replacement pattern for better cross-platform support.
+- **Permission handling**: Unified error handling patterns across all inspection modes.
+
+### 🗑️ Removed
+
+- **`--overview` flag**: Removed in favor of `--tree` and `--tree-verbose` modes.
+
+### 📝 Documentation
+
+- Updated **README.md** with new JSON functionality and removed `--overview` references.
+- Enhanced **examples section** with proper JSON usage patterns.
+- Updated **dependencies** to reflect optional `jq` requirement.
+
+---
 
 ## [1.3.0] - 2025-09-28
 

@@ -1,6 +1,6 @@
 .\" Manpage for symlinkit
 .\" Save as symlinkit.1 in ~/.local/share/man/man1/
-.TH SYMLINKIT 1 "September 2025" "1.3.0" "User Commands"
+.TH SYMLINKIT 1 "September 2025" "1.4.0" "User Commands"
 .SH NAME
 symlinkit \- flexible symlink helper with fzf, dry-run, and symlink overview tools
 .SH SYNOPSIS
@@ -51,9 +51,6 @@ If no DIR is provided, defaults to $HOME.
 List only broken symlinks under DIR.
 If no DIR is provided, defaults to $HOME.
 .TP
-.B --overview [DIR]
-Show a symlink overview (symlinks only) in a tree format (default: $HOME).
-If \fBtree\fR is unavailable, falls back to a flat list with \fBfind\fR.
 .TP
 .B --count-only [DIR]
 Show only the total number of symlinks under DIR (default: $HOME).
@@ -66,7 +63,8 @@ Sort results by path or symlink target.
 .TP
 .B --json
 Output results in JSON format (applies to \fB--list\fR, \fB--broken\fR, and
-\fB--overview\fR).
+\fB--count-only\fR). If no other mode is specified, defaults to list mode.
+Works with or without \fBjq\fR (uses fallback formatting if \fBjq\fR unavailable).
 .TP
 .B --fix-broken [DIR]
 Interactively fix broken symlinks under DIR (default: $HOME).
@@ -91,9 +89,14 @@ List broken symlinks in /etc:
 symlinkit --broken /etc
 .fi
 
-Symlink overview of ~/bin with depth 2:
+JSON output of symlinks in ~/bin:
 .nf
-symlinkit --overview ~/bin --depth 2
+symlinkit --json ~/bin
+.fi
+
+JSON output of broken symlinks:
+.nf
+symlinkit --json --broken ~/bin
 .fi
 
 Minimal tree view of ~/.config:
@@ -121,6 +124,34 @@ Merge contents:
 symlinkit -m ~/dotfiles/scripts ~/bin
 .fi
 
+.SH TESTING
+symlinkit includes a comprehensive test suite for validation across different environments.
+
+For help with testing commands:
+.nf
+./generate-tests.sh -h      # Show test generation help
+./run_tests.sh -h           # Show test runner help
+.fi
+
+To run tests, first generate them locally:
+.nf
+./generate-tests.sh
+.fi
+
+Then run the test suite:
+.nf
+./run_tests.sh
+.fi
+
+Individual test suites can be run separately:
+.nf
+./simple_test.sh           # Basic functionality tests
+./test_json_fallback.sh     # JSON functionality without jq
+.fi
+
+Tests are generated locally and not committed to the repository,
+keeping the codebase clean while allowing thorough validation.
+
 .SH AUTHOR
 Written by Adrian Thomas.
 
@@ -128,7 +159,7 @@ Written by Adrian Thomas.
 ln(1), fzf(1), tree(1), find(1), jq(1)
 
 .SH VERSION
-symlinkit 1.3.0 (September 2025)
+symlinkit 1.4.0 (September 2025)
 
 .SH REPORTING BUGS
 Report issues or feature requests at:
