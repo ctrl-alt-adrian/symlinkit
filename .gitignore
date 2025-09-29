@@ -36,6 +36,7 @@ minimal_test.sh
 # Man page rebuilds
 man/*.1.bak
 
-# Claude Code files
+# Ignore raw AI scratch files
 CLAUDE.md
-
+CHATGPT.md
+notes*.md
