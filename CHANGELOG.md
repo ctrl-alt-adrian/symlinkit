@@ -40,6 +40,16 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
 - **README.md**: Updated with `-d` flag and new operation requirements
 - **man page**: Updated to version 1.6.0 with delete mode documentation
 - **Help text**: Added `-d` flag to built-in help output
+- **Wiki**: Comprehensive wiki documentation created with 7 new pages:
+  - Installation Guide
+  - Quick Start
+  - Interactive Selection
+  - Symlink Modes
+  - Inspection Tools
+  - Advanced Features
+  - API Reference
+- **Code style**: Updated section headers from `# === SECTION ===` to `# --- section ---` for more natural appearance
+- **Help text**: Removed emojis from header sections for cleaner output
 
 ---
 

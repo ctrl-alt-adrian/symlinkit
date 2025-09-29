@@ -6,6 +6,8 @@
 ![macOS](https://img.shields.io/badge/OS-macOS-lightgrey?logo=apple)
 ![WSL](https://img.shields.io/badge/OS-WSL-blue?logo=windows)
 
+> **📚 [Visit the Wiki](https://github.com/ctrl-alt-adrian/symlinkit/wiki)** for comprehensive guides, tutorials, and API documentation.
+
 A small command-line tool that makes working with symlinks less of a hassle.
 It supports **intelligent interactive selection** (auto-detects [fzf](https://github.com/junegunn/fzf) with manual fallback), recursive linking, overwrite/merge modes, safe dry-runs, and advanced inspection tools to manage existing symlinks on your system.
 
@@ -22,6 +24,7 @@ Originally built to manage dotfiles, it works anywhere you need to symlink direc
 - [Contributing](#contributing)
 - [Reporting Issues](#reporting-issues)
 - [Requirements](#requirements)
+- [Documentation](#documentation)
 - [License](#license)
 
 ---
@@ -337,6 +340,21 @@ Found a bug or have a feature request? We'd love to hear from you!
   brew install coreutils findutils tree jq fzf
   ```
 - WSL → same as Linux; Windows paths handled via `wslpath`
+
+---
+
+## Documentation
+
+For detailed guides and comprehensive documentation, visit the **[symlinkit Wiki](https://github.com/ctrl-alt-adrian/symlinkit/wiki)**.
+
+### Wiki Pages
+- [Installation Guide](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Installation)
+- [Quick Start](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Quick-Start)
+- [Symlink Modes](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Symlink-Modes)
+- [Interactive Selection](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Interactive-Selection)
+- [Inspection Tools](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Inspection-Tools)
+- [Advanced Features](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Advanced-Features)
+- [API Reference](https://github.com/ctrl-alt-adrian/symlinkit/wiki/API-Reference)
 
 ---
 
