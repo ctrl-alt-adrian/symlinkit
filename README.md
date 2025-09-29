@@ -33,11 +33,12 @@ Originally built to manage dotfiles, it works anywhere you need to symlink direc
 
 - **Smart Interactive Selection** → Auto-detects fzf, falls back to manual prompts if not available
 - **fzf Control** → Force fzf usage (`--fzf`) or disable it (`--no-fzf`) as needed
+- **Create mode** → safely create new symlinks without overwriting existing files
 - **Delete mode** → safely remove symlinks with verification
-- Merge mode → recursively symlink directory contents
-- Overwrite mode → replace existing files/folders
-- Dry-run support → see what _would_ happen before committing
-- **Operation flags required** → explicit `-o`, `-m`, or `-d` required for creation/deletion operations
+- **Merge mode** → recursively symlink directory contents
+- **Overwrite mode** → replace existing files/folders
+- **Dry-run support** → see what _would_ happen before committing
+- **Operation flags required** → explicit `-c`, `-o`, `-m`, or `-d` required for creation/deletion operations
 - `--list [DIR]` → list symlinks (default `$HOME`), with `path -> target` output
 - `--broken [DIR]` → list **broken** symlinks (default `$HOME`)
 - `--fix-broken [DIR]` → interactively fix broken symlinks (delete, update, skip)
@@ -103,7 +104,7 @@ Then:
 man symlinkit
 ```
 
-**Operation flags are required**: You must specify an operation flag (`-o`, `-m`, or `-d`) when creating or deleting symlinks. Running `symlinkit` without an operation will show a helpful error message listing available operations.
+**Operation flags are required**: You must specify an operation flag (`-c`, `-o`, `-m`, or `-d`) when creating or deleting symlinks. Running `symlinkit` without an operation will show a helpful error message listing available operations.
 
 If you don't pass SOURCE or DESTINATION, you'll be prompted to pick them interactively:
 - **With fzf** (if available): Interactive fuzzy finder with preview
@@ -116,6 +117,7 @@ If you don't pass SOURCE or DESTINATION, you'll be prompted to pick them interac
 ## Flags
 
 ```
+-c → create mode (safe creation, fails if exists)
 -o → overwrite mode
 -m → merge mode (recursive)
 -d → delete mode (remove symlink)
@@ -141,6 +143,9 @@ If you don't pass SOURCE or DESTINATION, you'll be prompted to pick them interac
 ## Examples
 
 ```bash
+# Create a new symlink (safe, fails if exists)
+symlinkit -c ~/dotfiles/config ~/.config
+
 # Overwrite ~/.config/config with ~/dotfiles/config
 symlinkit -o ~/dotfiles/config ~/.config
 
@@ -232,9 +237,11 @@ chmod +x *.sh
 
 - ✅ **Core Commands**: Version, help, basic flag parsing
 - ✅ **JSON Functionality**: List, broken, count modes with/without jq
-- ✅ **Symlink Operations**: Dry-run, overwrite, list, broken detection
+- ✅ **Symlink Operations**: Create, overwrite, merge, delete (dry-run and actual)
+- ✅ **List Operations**: Standard and verbose list modes
+- ✅ **Tree Operations**: Standard and verbose tree views
 - ✅ **Cross-platform Compatibility**: OS detection and graceful handling
-- ✅ **Error Handling**: Invalid flags, missing dependencies
+- ✅ **Error Handling**: Invalid flags, missing dependencies, existing targets
 
 ### Test Output
 

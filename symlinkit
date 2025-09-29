@@ -5,6 +5,7 @@
 #   symlinkit [FLAGS] [SOURCE] [DESTINATION]
 #
 # Flags:
+#   -c                     Create mode (create a new symlink)
 #   -o                     Overwrite mode (remove existing target, replace with symlink)
 #   -m                     Merge mode (recursively symlink contents into destination)
 #   -d                     Delete mode (remove a symlink)
@@ -30,7 +31,7 @@
 #
 
 # --- configuration ---
-VERSION="1.6.0"
+VERSION="1.7.0"
 readonly DEFAULT_DEPTH=3
 
 # --- os detection ---
@@ -413,6 +414,7 @@ while [[ $# -gt 0 && "$1" == -* ]]; do
     --dry-run-overwrite) dry_run=true; dry_run_overwrite=true ;;
     --tree) show_tree=true ;;
     --tree-verbose) show_tree_verbose=true ;;
+    -c) mode="create" ;;
     -o) mode="overwrite" ;;
     -m) mode="merge" ;;
     -d) mode="delete" ;;
@@ -598,6 +600,7 @@ if [[ -z "$mode" && -z "${1:-}" ]]; then
   echo "❌ No operation specified." >&2
   echo "" >&2
   echo "Available operations:" >&2
+  echo "  -c    Create mode (create a new symlink)" >&2
   echo "  -o    Overwrite mode (remove existing target, replace with symlink)" >&2
   echo "  -m    Merge mode (recursively symlink contents into destination)" >&2
   echo "  -d    Delete mode (remove a symlink)" >&2
@@ -635,7 +638,21 @@ fi
 
 # Require operation to be specified
 if [[ -z "$mode" ]]; then
-  die "❌ No operation specified. Use -o (overwrite), -m (merge), or -d (delete)."
+  die "❌ No operation specified. Use -c (create), -o (overwrite), -m (merge), or -d (delete)."
+fi
+
+if [[ "$mode" == "create" ]]; then
+  if [[ -e "$target" || -L "$target" ]]; then
+    die "❌ Target already exists: $target\n   Use -o to overwrite or -m to merge into existing target"
+  fi
+
+  $dry_run || ln -s -- "$src" "$target"
+
+  if $dry_run; then
+    echo -e "${GREEN}✅ Would create symlink:${RESET} $target → $src"
+  else
+    echo -e "${GREEN}✅ Successfully created symlink:${RESET} $target → $src"
+  fi
 fi
 
 if [[ "$mode" == "overwrite" ]]; then
@@ -645,10 +662,10 @@ fi
 
 if [[ "$mode" == "merge" ]]; then
   mkdir -p -- "$target"; overwrite_all=false
-  merge_output=$(safe_find --print0 "$src" -print0)
+  merge_output=$(safe_find "$src")
   has_permission_errors=$?
-  mapfile -d '' items < <(echo "$merge_output" | tr '\n' '\0')
-  for item in "${items[@]}"; do [[ "$item" == "$src" ]] && continue
+  mapfile -t items < <(echo "$merge_output")
+  for item in "${items[@]}"; do [[ -z "$item" || "$item" == "$src" ]] && continue
     rel="${item#"$src"/}"; dest_item="$target/$rel"
     if [[ -d "$item" ]]; then $dry_run || mkdir -p -- "$dest_item"
     else

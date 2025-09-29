@@ -3,6 +3,63 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.7.0] - 2025-09-29
+
+### 🚀 Major Features
+
+- **Create mode (`-c`)**: New safe symlink creation operation
+  - Create symlinks without overwriting existing targets
+  - Fails gracefully if target already exists with helpful error message
+  - Suggests using `-o` (overwrite) or `-m` (merge) for existing targets
+  - Supports `--dry-run` mode for safe previewing
+  - Interactive selection works for source, destination, or both
+  - Usage: `symlinkit -c SOURCE DESTINATION`
+
+### 🎯 Use Cases
+
+Create mode is perfect for:
+- **Initial setup**: Creating symlinks for the first time
+- **Safe operations**: When you want to ensure nothing gets overwritten
+- **Validation**: Verifying targets don't already exist before linking
+- **Scripts**: Automated setups that should fail on conflicts rather than overwrite
+
+### 🐛 Fixes
+
+- **Merge mode bug**: Fixed `safe_find` being called with incorrect `--print0` argument placement
+  - Changed from `safe_find --print0 "$src" -print0` to `safe_find "$src" -print0`
+  - Fixes "unknown predicate" error during merge operations
+  - Resolves mapfile null byte handling issues
+
+### 🧪 Testing
+
+- **Comprehensive test coverage**: Added tests for all operation modes
+  - Create mode: dry-run, actual operation, error handling
+  - Overwrite mode: dry-run and actual operation
+  - Merge mode: dry-run and actual operation
+  - Delete mode: dry-run and actual operation
+  - List-verbose mode: basic functionality
+  - Tree modes: both regular and verbose
+- **Enhanced test suite**: 25+ tests now pass including all new create mode tests
+- **JSON fallback test fix**: Fixed comma separation detection in JSON output tests
+
+### 📝 Documentation
+
+- **README.md**: Updated with `-c` flag, examples, and use cases
+- **man page**: Updated to version 1.7.0 with create mode documentation
+- **Help text**: Added `-c` flag to built-in help output
+- **CHANGELOG.md**: Comprehensive documentation of all changes
+- **Wiki**: Updated relevant pages with create mode information
+
+### 🔄 Complete Operation Set
+
+symlinkit now offers a complete set of symlink operations:
+- **`-c`** (create): Safe creation, fails if exists
+- **`-o`** (overwrite): Replace existing target
+- **`-m`** (merge): Recursively symlink contents
+- **`-d`** (delete): Remove symlinks safely
+
+---
+
 ## [1.6.0] - 2025-09-29
 
 ### 🚀 Major Features

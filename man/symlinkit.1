@@ -1,6 +1,6 @@
 .\" Manpage for symlinkit
 .\" Save as symlinkit.1 in ~/.local/share/man/man1/
-.TH SYMLINKIT 1 "September 2025" "1.6.0" "User Commands"
+.TH SYMLINKIT 1 "September 2025" "1.7.0" "User Commands"
 .SH NAME
 symlinkit \- flexible symlink helper with intelligent fzf fallback, dry-run, and symlink overview tools
 .SH SYNOPSIS
@@ -12,7 +12,7 @@ The
 command simplifies creating and inspecting symbolic links, with intelligent
 interactive selection, merge/overwrite modes, dry-run previews, and inspection utilities.
 
-An operation flag (\fB-o\fR, \fB-m\fR, or \fB-d\fR) is required for
+An operation flag (\fB-c\fR, \fB-o\fR, \fB-m\fR, or \fB-d\fR) is required for
 symlink creation or deletion operations. Inspection commands like
 \fB--list\fR, \fB--tree\fR, \fB--broken\fR do not require operation flags.
 
@@ -26,6 +26,10 @@ In addition to symlink creation, symlinkit can list existing symlinks, show
 broken symlinks, produce overviews with \fBtree\fR, and output results in JSON.
 
 .SH OPTIONS
+.TP
+.B -c
+Create mode (create a new symlink). Fails if target already exists,
+suggesting \fB-o\fR or \fB-m\fR alternatives. Supports \fB--dry-run\fR.
 .TP
 .B -o
 Overwrite mode (remove existing target, replace with symlink).
@@ -131,6 +135,11 @@ Fix broken symlinks under $HOME:
 symlinkit --fix-broken
 .fi
 
+Create a new symlink:
+.nf
+symlinkit -c ~/dotfiles/config ~/.config
+.fi
+
 Overwrite:
 .nf
 symlinkit -o ~/dotfiles/config ~/.config
@@ -196,7 +205,7 @@ Written by Adrian Thomas.
 ln(1), fzf(1), tree(1), find(1), jq(1)
 
 .SH VERSION
-symlinkit 1.6.0 (September 2025)
+symlinkit 1.7.0 (September 2025)
 
 .SH REPORTING BUGS
 Report issues or feature requests at:
