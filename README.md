@@ -72,7 +72,7 @@ Originally built to manage dotfiles, it works anywhere you need to symlink direc
 Clone and install locally:
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/symlinkit.git
+git clone https://github.com/ctrl-alt-adrian/symlinkit.git
 cd symlinkit
 chmod +x symlinkit
 mkdir -p ~/bin
