@@ -9,13 +9,14 @@
 #   -m                     Merge mode (recursively symlink contents into destination)
 #   --dry-run              Preview actions (conflicts default to "skip")
 #   --dry-run-overwrite    Preview actions (conflicts default to "overwrite")
-#   --tree                 Show final destination tree (requires 'tree' installed)
+#   --tree                 Minimal tree view (standalone or after linking)
+#   --tree-verbose         Verbose tree view with permissions (standalone or after linking)
 #
 #   --list [DIR]           List symlinks (default: $HOME)
 #   --broken [DIR]         List only broken symlinks (default: $HOME)
 #   --overview [DIR]       Show symlink overview (symlinks only; tree if installed; fallback to flat) (default: $HOME)
 #   --count-only [DIR]     Show only the count of symlinks (default: $HOME)
-#   --depth N              Limit overview depth (default: 3)
+#   --depth N              Limit overview/tree/fix-broken depth (default: 3)
 #   --sort [path|target]   Sort results by path or target
 #   --json                 Output results in JSON format
 #   --fix-broken [DIR]     Interactively fix broken symlinks (delete / update) (default: $HOME)
@@ -23,26 +24,24 @@
 #   -h, --help             Show help message
 #   -v, --version          Show version info
 #
-# 💡 Examples:
-#   symlinkit -o ~/dotfiles/config ~/.config
-#   symlinkit --list
-#   symlinkit --list /etc
-#   symlinkit --broken
-#   symlinkit --overview ~ --depth 2
-#   symlinkit --json --list /usr/local/bin
-#   symlinkit --fix-broken              # scan $HOME
-#   symlinkit --fix-broken /etc         # scan /etc
-#
-VERSION="1.2.0"
+VERSION="1.3.0"
+
+# --- Detect OS (Linux, macOS, WSL) ---
+case "$(uname -s)" in
+  Linux*)   OS="Linux" ;;
+  Darwin*)  OS="macOS" ;;
+  CYGWIN*|MINGW*|MSYS*) OS="WindowsLike" ;;
+  *)        OS="Unknown" ;;
+esac
+
+IS_WSL=false
+if [[ "$OS" == "Linux" ]] && { [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qiE "(microsoft|wsl)" /proc/version 2>/dev/null; }; then
+  IS_WSL=true
+fi
 
 # --- Dependencies ---
 if ! command -v fzf >/dev/null 2>&1; then
-  echo "❌ fzf not found. Install with: sudo pacman -S fzf"
-  exit 1
-fi
-
-if ! command -v realpath >/dev/null 2>&1; then
-  echo "❌ realpath not found. Install coreutils."
+  echo "❌ fzf not found. Install with your package manager."
   exit 1
 fi
 
@@ -54,11 +53,48 @@ YELLOW="\033[0;33m"
 GREEN="\033[0;32m"
 RESET="\033[0m"
 
+# --- Helpers ---
+die() { echo -e "$@" >&2; exit 1; }
+
+realpath_wrap() {
+  local p="$1"
+  if [[ "$p" == "~"* ]]; then
+    p="${p/#\~/$HOME}"
+  fi
+  if $IS_WSL && [[ "$p" =~ ^[A-Za-z]:\\|\\|/mnt/[a-z]/ ]]; then
+    if command -v wslpath >/dev/null 2>&1; then
+      p="${p//\\//}"
+      wslpath -u "$p"
+      return
+    fi
+  fi
+  if command -v realpath >/dev/null 2>&1; then
+    realpath -m -- "$p"
+  elif [[ "$OS" == "macOS" ]] && command -v grealpath >/dev/null 2>&1; then
+    grealpath -m -- "$p"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$p"
+  else
+    die "❌ Could not resolve path '$p'. Install coreutils (realpath/grealpath) or ensure python3 is available."
+  fi
+}
+
+find_wrap() {
+  if [[ "$OS" == "macOS" ]] && command -v gfind >/dev/null 2>&1; then
+    gfind "$@"
+  else
+    find "$@"
+  fi
+}
+
+trap "echo; die '❌ Cancelled by user'" SIGINT
+
 # --- Modes ---
 dry_run=false
 dry_run_overwrite=false
 mode=""
 show_tree=false
+show_tree_verbose=false
 list_mode=false
 broken_mode=false
 overview_mode=false
@@ -78,6 +114,7 @@ while [[ "$1" == -* ]]; do
     --dry-run) dry_run=true ;;
     --dry-run-overwrite) dry_run=true; dry_run_overwrite=true ;;
     --tree) show_tree=true ;;
+    --tree-verbose) show_tree_verbose=true ;;
     -o) mode="overwrite" ;;
     -m) mode="merge" ;;
     --list) list_mode=true ;;
@@ -92,14 +129,14 @@ while [[ "$1" == -* ]]; do
       grep '^# ' "$0" | sed 's/^# //'
       exit 0 ;;
     -v|--version)
-      echo "symlinkit $VERSION"
+      echo "symlinkit $VERSION ($OS${IS_WSL:++WSL})"
       exit 0 ;;
-    *) echo "❌ Unknown flag: $1"; exit 1 ;;
+    *) die "❌ Unknown flag: $1" ;;
   esac
   shift
 done
 
-# --- Helper: Sort Results for "path -> target" lines ---
+# --- Helpers ---
 sort_results() {
   case "$sort_by" in
     path) sort ;;
@@ -108,16 +145,32 @@ sort_results() {
   esac
 }
 
+print_symlink() {
+  local path="$1" target="$2"
+  [[ -n "$target" ]] && target=$(realpath_wrap "$target" 2>/dev/null || echo "$target")
+  echo -e "${PATH_COLOR}${path}${RESET} -> ${TARGET_COLOR}${target}${RESET}"
+}
+
+print_symlink_json() {
+  local path="$1" target="$2"
+  [[ -n "$target" ]] && target=$(realpath_wrap "$target" 2>/dev/null || echo "$target")
+  printf '{"path":"%s","target":"%s"}\n' "$path" "$target"
+}
+
 # --- List Symlinks ---
 if [[ "$list_mode" == true ]]; then
   dir="${1:-$HOME}"
   if [[ -n "$1" && -d "$1" ]]; then shift; fi
   if $json; then
-    find "$dir" -type l -printf '{"path":"%p","target":"%l"}\n' 2>/dev/null | sort_results | jq -s .
+    find_wrap "$dir" -type l 2>/dev/null | while read -r l; do
+      print_symlink_json "$l" "$(readlink "$l")"
+    done | sort_results | jq -s .
   else
-    count=$(find "$dir" -type l 2>/dev/null | wc -l)
+    count=$(find_wrap "$dir" -type l 2>/dev/null | wc -l)
     echo "📊 Found symlinks in $dir: $count"
-    find "$dir" -type l -printf "${PATH_COLOR}%p${RESET} -> ${TARGET_COLOR}%l${RESET}\n" 2>/dev/null | sort_results
+    find_wrap "$dir" -type l 2>/dev/null | while read -r l; do
+      print_symlink "$l" "$(readlink "$l")"
+    done | sort_results
   fi
   exit 0
 fi
@@ -127,11 +180,15 @@ if [[ "$broken_mode" == true ]]; then
   dir="${1:-$HOME}"
   if [[ -n "$1" && -d "$1" ]]; then shift; fi
   if $json; then
-    find "$dir" -xtype l -printf '{"path":"%p","target":"%l"}\n' 2>/dev/null | sort_results | jq -s .
+    find_wrap "$dir" -type l 2>/dev/null | while read -r l; do
+      [[ ! -e "$l" ]] && print_symlink_json "$l" "$(readlink "$l")"
+    done | sort_results | jq -s .
   else
-    count=$(find "$dir" -xtype l 2>/dev/null | wc -l)
+    count=$(find_wrap "$dir" -type l 2>/dev/null | while read -r l; do [[ ! -e "$l" ]] && echo "$l"; done | wc -l)
     echo "📊 Found broken symlinks in $dir: $count"
-    find "$dir" -xtype l -printf "${PATH_COLOR}%p${RESET} -> ${TARGET_COLOR}%l${RESET}\n" 2>/dev/null | sort_results
+    find_wrap "$dir" -type l 2>/dev/null | while read -r l; do
+      [[ ! -e "$l" ]] && print_symlink "$l" "$(readlink "$l")"
+    done | sort_results
   fi
   exit 0
 fi
@@ -140,7 +197,7 @@ fi
 if [[ "$count_only" == true ]]; then
   dir="${1:-$HOME}"
   if [[ -n "$1" && -d "$1" ]]; then shift; fi
-  count=$(find "$dir" -type l 2>/dev/null | wc -l)
+  count=$(find_wrap "$dir" -type l 2>/dev/null | wc -l)
   echo "🔢 Symlink count in $dir: $count"
   exit 0
 fi
@@ -151,15 +208,36 @@ if [[ "$overview_mode" == true ]]; then
   if [[ -n "$1" && -d "$1" ]]; then shift; fi
   if command -v tree >/dev/null 2>&1; then
     if $json; then
-      find "$dir" -maxdepth "$depth" -type l -printf '{"path":"%p","target":"%l"}\n' 2>/dev/null | sort_results | jq -s .
+      find_wrap "$dir" -maxdepth "$depth" -type l 2>/dev/null | while read -r l; do
+        print_symlink_json "$l" "$(readlink "$l")"
+      done | sort_results | jq -s .
     else
       echo "📂 Symlink overview of $dir (depth=$depth):"
-      # Print root line (NR==1), then only lines with '->' (symlinks)
-      tree -L "$depth" -F -p -l "$dir" | awk 'NR==1{print;next} /->/'
+      tree -L "$depth" -F -p "$dir" | awk 'NR==1{print;next} /->/'
     fi
   else
     echo "⚠️ tree not found, falling back to flat list."
-    find "$dir" -maxdepth "$depth" -type l -printf "${PATH_COLOR}%p${RESET} -> ${TARGET_COLOR}%l${RESET}\n" 2>/dev/null | sort_results
+    find_wrap "$dir" -maxdepth "$depth" -type l 2>/dev/null | while read -r l; do
+      print_symlink "$l" "$(readlink "$l")"
+    done | sort_results
+  fi
+  exit 0
+fi
+
+# --- Tree Standalone Modes ---
+if [[ ("$show_tree" == true || "$show_tree_verbose" == true) && -z "$mode" && "$list_mode" == false && "$broken_mode" == false && "$overview_mode" == false && "$count_only" == false && "$fix_broken" == false ]]; then
+  dir="${1:-$HOME}"
+  if [[ -n "$1" && -d "$1" ]]; then shift; fi
+  if command -v tree >/dev/null 2>&1; then
+    if [[ "$show_tree_verbose" == true ]]; then
+      echo "📂 Verbose tree view of $dir (depth=$depth):"
+      tree -L "$depth" -F -p "$dir"
+    else
+      echo "📂 Tree view of $dir (depth=$depth):"
+      tree -L "$depth" -F "$dir"
+    fi
+  else
+    die "❌ tree command not found. Install it with your package manager."
   fi
   exit 0
 fi
@@ -169,7 +247,8 @@ if [[ "$fix_broken" == true ]]; then
   dir="${1:-$HOME}"
   if [[ -n "$1" && -d "$1" ]]; then shift; fi
 
-  mapfile -t broken_links < <(find "$dir" -xtype l 2>/dev/null)
+  mapfile -t broken_links < <(find_wrap "$dir" -type l 2>/dev/null | while read -r l; do [[ ! -e "$l" ]] && echo "$l"; done)
+
   if [[ "${#broken_links[@]}" -eq 0 ]]; then
     echo "✅ No broken symlinks in $dir"
     exit 0
@@ -181,7 +260,7 @@ if [[ "$fix_broken" == true ]]; then
 
   for link in "${broken_links[@]}"; do
     target=$(readlink "$link")
-    echo -e "🔗 Broken symlink: ${PATH_COLOR}$link${RESET} -> ${TARGET_COLOR}$target${RESET}"
+    print_symlink "$link" "$target"
     printf "[d]elete / [u]pdate / [s]kip > "
     read -r -n1 action; echo
 
@@ -198,10 +277,10 @@ if [[ "$fix_broken" == true ]]; then
         echo "Enter new target path (leave blank to pick with fzf):"
         read -r new_target
         if [[ -z "$new_target" ]]; then
-          # Allow quick pick; adjust search roots/depths as you prefer
-          new_target=$(find "${SYMLINK_BASE_SRC:-$HOME}" -mindepth 0 -maxdepth 5 2>/dev/null | fzf --prompt="New target> " || true)
+          new_target=$(find_wrap "${SYMLINK_BASE_SRC:-$HOME}" -mindepth 0 -maxdepth "$depth" 2>/dev/null | fzf --prompt="New target> " || true)
         fi
         if [[ -n "$new_target" ]]; then
+          new_target=$(realpath_wrap "$new_target")
           if $dry_run; then
             echo -e "${GREEN}✅ Would update${RESET}: $link -> $new_target"
           else
@@ -224,35 +303,31 @@ if [[ "$fix_broken" == true ]]; then
   exit 0
 fi
 
-# --- Core Symlink Logic (overwrite/merge) ---
-# Expand arguments
+# --- Core Symlink Logic ---
 if [[ -n "$1" ]]; then
   src="$1"; shift
 else
-  src=$(find "${SYMLINK_BASE_SRC:-$HOME}" -mindepth 1 -maxdepth "${SYMLINK_DEPTH:-5}" -type d -print 2>/dev/null \
+  src=$(find_wrap "${SYMLINK_BASE_SRC:-$HOME}" -mindepth 1 -maxdepth "${SYMLINK_DEPTH:-5}" -type d -print 2>/dev/null \
         | fzf --prompt="Source dir> " --preview 'ls -la --color=always {}' --preview-window=down:15)
 fi
-[[ -z "$src" ]] && echo "❌ No source selected." && exit 1
+[[ -z "$src" ]] && die "❌ No source selected."
 
 if [[ -n "$1" ]]; then
   dest="$1"; shift
 else
-  dest=$(find "${SYMLINK_BASE_DEST:-$HOME}" -mindepth 0 -maxdepth "${SYMLINK_DEPTH:-5}" -type d -print 2>/dev/null \
+  dest=$(find_wrap "${SYMLINK_BASE_DEST:-$HOME}" -mindepth 0 -maxdepth "${SYMLINK_DEPTH:-5}" -type d -print 2>/dev/null \
          | fzf --prompt="Destination dir> " --preview 'ls -la --color=always {}' --preview-window=down:15)
 fi
-[[ -z "$dest" ]] && echo "❌ No destination selected." && exit 1
+[[ -z "$dest" ]] && die "❌ No destination selected."
 
-# Expand and absolutize
-src=$(realpath -m "$(eval echo "$src")")
-dest=$(realpath -m "$(eval echo "$dest")")
+src=$(realpath_wrap "$src")
+dest=$(realpath_wrap "$dest")
 
-# Ensure destination exists
 $dry_run || mkdir -p -- "$dest"
 
 linkname=$(basename -- "$src")
 target="$dest/$linkname"
 
-# If target exists, pick mode interactively (if no flag given)
 if [[ -e "$target" || -L "$target" ]]; then
   if [[ -z "$mode" ]]; then
     printf "⚠️  %s already exists.\n[o]verwrite / [m]erge / [c]ancel > " "$target"
@@ -260,7 +335,7 @@ if [[ -e "$target" || -L "$target" ]]; then
     case "$choice" in
       o|O) mode="overwrite" ;;
       m|M) mode="merge" ;;
-      *) echo "❌ Cancelled."; exit 1 ;;
+      *) die "❌ Cancelled." ;;
     esac
   fi
 else
@@ -282,7 +357,8 @@ fi
 if [[ "$mode" == "merge" ]]; then
   mkdir -p -- "$target"
   overwrite_all=false
-  find "$src" -print0 | while IFS= read -r -d '' item; do
+  mapfile -d '' items < <(find_wrap "$src" -print0)
+  for item in "${items[@]}"; do
     [[ "$item" == "$src" ]] && continue
     relpath="${item#$src/}"
     dest_item="$target/$relpath"
@@ -311,7 +387,7 @@ if [[ "$mode" == "merge" ]]; then
               s|S) echo -e "${YELLOW}⏭️ Skipped:${RESET} $dest_item"; ((skipped++)) ;;
               o|O) rm -rf -- "$dest_item"; ln -s -- "$item" "$dest_item"; echo -e "${RED}🔄 Overwritten:${RESET} $dest_item"; ((overwritten++)) ;;
               a|A) overwrite_all=true; rm -rf -- "$dest_item"; ln -s -- "$item" "$dest_item"; echo -e "${RED}🔄 Overwritten (all):${RESET} $dest_item"; ((overwritten++)) ;;
-              *) echo "❌ Cancelled."; exit 1 ;;
+              *) die "❌ Cancelled." ;;
             esac
           fi
         fi
@@ -328,16 +404,21 @@ if [[ "$mode" == "merge" ]]; then
   done
 fi
 
-# --- End output ---
+# --- End Output ---
 if $dry_run; then
   echo -e "(${YELLOW}Dry run:${RESET} no changes applied)"
   echo -e "📊 Summary: ${GREEN}$linked would link${RESET}, ${RED}$overwritten would overwrite${RESET}, ${YELLOW}$skipped would skip${RESET}"
-elif $show_tree; then
+elif $show_tree || $show_tree_verbose; then
   if command -v tree >/dev/null 2>&1; then
-    echo "📂 Destination listing:"
-    tree -fp "$dest"
+    if [[ "$show_tree_verbose" == true ]]; then
+      echo "📂 Destination listing (verbose):"
+      tree -L "$depth" -F -p "$dest"
+    else
+      echo "📂 Destination listing:"
+      tree -L "$depth" -F "$dest"
+    fi
   else
-    echo "❌ Tree not found. Install with: sudo pacman -S tree"
+    echo "❌ tree not found. Install with your package manager."
   fi
 fi
 

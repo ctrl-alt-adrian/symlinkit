@@ -3,6 +3,30 @@
 All notable changes to this project will be documented in this file.  
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.3.0] - 2025-09-28
+
+### Added
+
+- New `--tree-verbose` mode: shows permissions + symlink arrows, works standalone or after linking.
+- `--tree` is now minimal by default (symlink arrows only), also usable standalone.
+- `--depth` now applies to `--fix-broken` interactive picker (fzf search limited by depth).
+- OS detection for Linux, macOS, and WSL. Added graceful fallbacks for `realpath` and `find` (macOS/WSL).
+- README: Added **Supported Operating Systems** section.
+- README: Added **compatibility badges** (Linux, macOS, WSL).
+- README: Added **Table of Contents** for easier navigation.
+
+### Changed
+
+- `--tree` behavior clarified: no longer only a post-link display, can be run standalone (`symlinkit --tree DIR`).
+- `--depth` description updated to reflect usage across overview, tree, and fix-broken.
+- README: Expanded **Requirements** section with OS-specific installation notes.
+
+### Fixed
+
+- More portable path resolution with `realpath_wrap` and `find_wrap`.
+- Safer handling of broken symlink targets during fix/update.
+- Unified dry-run output consistency across overwrite/merge/fix-broken.
+
 ---
 
 ## [1.2.0] - 2025-09-28
