@@ -20,6 +20,7 @@ Originally built to manage dotfiles, it works anywhere you need to symlink direc
 - [Examples](#examples)
 - [Testing](#testing)
 - [Contributing](#contributing)
+- [Reporting Issues](#reporting-issues)
 - [Requirements](#requirements)
 - [License](#license)
 
@@ -248,22 +249,7 @@ chmod +x symlinkit
 
 ### Testing
 
-The project uses a test generation system to keep the repository clean:
-
-```bash
-# Generate test files locally
-./generate-tests.sh
-
-# Make test scripts executable
-chmod +x *.sh
-
-# Run all tests
-./run_tests.sh
-
-# Run specific test suites
-./simple_test.sh           # Basic functionality
-./test_json_fallback.sh     # JSON edge cases
-```
+Always run the test suite before submitting changes. See the [Testing](#testing) section above for complete instructions.
 
 ### Submitting Changes
 
@@ -280,6 +266,36 @@ chmod +x *.sh
 - 📚 **Documentation**: Improvements to README, man page, or code comments
 - 🧪 **Tests**: Additional test coverage or test improvements
 - 🎨 **Code quality**: Refactoring, optimization, or style improvements
+
+---
+
+## Reporting Issues
+
+Found a bug or have a feature request? We'd love to hear from you!
+
+### Before Reporting
+
+1. **Check existing issues**: Search [GitHub Issues](https://github.com/ctrl-alt-adrian/symlinkit/issues) to see if it's already reported
+2. **Test with latest version**: Ensure you're using the most recent release
+3. **Run the test suite**: Generate and run tests to help isolate the issue:
+   ```bash
+   ./generate-tests.sh
+   ./run_tests.sh
+   ```
+
+### What to Include
+
+- **Environment**: OS, version, shell (bash/zsh)
+- **symlinkit version**: Run `./symlinkit --version`
+- **Steps to reproduce**: Clear, minimal example
+- **Expected vs actual behavior**: What should happen vs what does happen
+- **Test results**: Include relevant test output if applicable
+
+### Quick Links
+
+- 🐛 [Report Bug](https://github.com/ctrl-alt-adrian/symlinkit/issues/new?labels=bug)
+- ✨ [Request Feature](https://github.com/ctrl-alt-adrian/symlinkit/issues/new?labels=enhancement)
+- 📚 [Ask Question](https://github.com/ctrl-alt-adrian/symlinkit/discussions)
 
 ---
 

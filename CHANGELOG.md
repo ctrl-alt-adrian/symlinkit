@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.4.1] - 2025-09-29
+
+### 📝 Documentation
+
+- Added **Contributing** section to README:
+  - Development setup instructions
+  - Testing workflow
+  - Submitting changes (branching, commits, PRs)
+  - Contribution categories (bug fixes, features, docs, tests, refactoring)
+
 ## [1.4.0] - 2025-09-29
 
 ### 🚀 Major Features

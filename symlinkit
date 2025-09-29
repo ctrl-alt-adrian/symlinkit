@@ -24,7 +24,7 @@
 #   -h, --help             Show help message
 #   -v, --version          Show version info
 #
-VERSION="1.4.0"
+VERSION="1.4.1"
 
 # --- Detect OS (Linux, macOS, WSL) ---
 case "$(uname -s)" in
