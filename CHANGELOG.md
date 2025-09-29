@@ -3,6 +3,46 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.6.0] - 2025-09-29
+
+### 🚀 Major Features
+
+- **Delete mode (`-d`)**: New operation to remove symlinks safely
+  - Delete individual symlinks with verification
+  - Shows symlink target before deletion
+  - Supports `--dry-run` mode for safe previewing
+  - Usage: `symlinkit -d /path/to/symlink`
+
+### 🎯 Breaking Changes
+
+- **Operation flags now required**: symlinkit now requires an explicit operation flag for creation/deletion
+  - **Required flags**: `-o` (overwrite), `-m` (merge), or `-d` (delete)
+  - **No automatic defaults**: Running `symlinkit source dest` without a flag now shows an error
+  - **Helpful error messages**: Clear guidance listing all available operations and commands
+  - **Inspection commands unchanged**: `--list`, `--tree`, `--broken`, etc. still work without operation flags
+
+### 🔧 Improvements
+
+- **Enhanced error messaging**: When no operation is specified, displays a helpful list of:
+  - Available operations (`-o`, `-m`, `-d`)
+  - Available commands that don't require operations (`--list`, `--broken`, `--tree`, etc.)
+- **Better user guidance**: Prevents accidental operations by requiring explicit intent
+
+### 🐛 Fixes
+
+- Fixed shellcheck errors:
+  - Removed invalid `local` keyword usage outside functions
+  - Removed unused `print_zero` variable from `safe_find()`
+  - Split declaration and assignment to avoid masking return values
+
+### 📝 Documentation
+
+- **README.md**: Updated with `-d` flag and new operation requirements
+- **man page**: Updated to version 1.6.0 with delete mode documentation
+- **Help text**: Added `-d` flag to built-in help output
+
+---
+
 ## [1.5.1] - 2025-09-29
 
 ### 🛠 Chores

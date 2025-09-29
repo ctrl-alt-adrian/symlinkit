@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # symlinkit - A flexible symlink helper with fzf + dry-run support
 #
-# 📌 Usage:
+# Usage:
 #   symlinkit [FLAGS] [SOURCE] [DESTINATION]
 #
-# 🔑 Flags:
+# Flags:
 #   -o                     Overwrite mode (remove existing target, replace with symlink)
 #   -m                     Merge mode (recursively symlink contents into destination)
+#   -d                     Delete mode (remove a symlink)
 #   --dry-run              Preview actions (conflicts default to "skip")
 #   --dry-run-overwrite    Preview actions (conflicts default to "overwrite")
 #   --tree                 Minimal tree view (standalone or after linking)
@@ -28,11 +29,11 @@
 #   -v, --version          Show version info
 #
 
-# === CONFIGURATION ===
-VERSION="1.5.1"
+# --- configuration ---
+VERSION="1.6.0"
 readonly DEFAULT_DEPTH=3
 
-# === OS DETECTION ===
+# --- os detection ---
 case "$(uname -s)" in
   Linux*)   OS="Linux" ;;
   Darwin*)  OS="macOS" ;;
@@ -45,7 +46,7 @@ if [[ "$OS" == "Linux" ]] && { [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qiE "(mi
   IS_WSL=true
 fi
 
-# === COLORS ===
+# --- colors ---
 PATH_COLOR="\033[0;36m"
 TARGET_COLOR="\033[0;35m"
 RED="\033[0;31m"
@@ -53,7 +54,7 @@ YELLOW="\033[0;33m"
 GREEN="\033[0;32m"
 RESET="\033[0m"
 
-# === GLOBAL STATE ===
+# --- global state ---
 dry_run=false
 dry_run_overwrite=false
 mode=""
@@ -74,7 +75,7 @@ linked=0
 overwritten=0
 skipped=0
 
-# === CORE UTILITIES ===
+# --- core utilities ---
 die() { echo -e "$@" >&2; exit 1; }
 has_fzf() { command -v fzf >/dev/null 2>&1; }
 
@@ -101,7 +102,7 @@ find_wrap() {
   else find "$@"; fi
 }
 
-# === PATH RESOLUTION ===
+# --- path resolution ---
 resolve_input_path() {
   local input_path="$1"
   # Handle tilde expansion
@@ -110,7 +111,7 @@ resolve_input_path() {
   realpath_wrap "$input_path" 2>/dev/null || echo "$input_path"
 }
 
-# === PERMISSION ERROR HANDLING ===
+# --- permission error handling ---
 check_permission_errors() {
   local output="$1"
   local permission_errors
@@ -124,9 +125,6 @@ check_permission_errors() {
 
 # Unified safe find wrapper that handles permission errors consistently
 safe_find() {
-  local print_zero=false
-  [[ "$1" == "--print0" ]] && { print_zero=true; shift; }
-
   local find_output
   find_output=$(find_wrap "$@" 2>&1)
 
@@ -141,7 +139,7 @@ safe_find() {
   if $has_permission_errors; then return 0; else return 1; fi
 }
 
-# === INPUT VALIDATION ===
+# --- input validation ---
 validate_directory() { [[ -d "$1" ]]; }
 validate_file() { [[ -f "$1" ]]; }
 
@@ -168,7 +166,7 @@ get_validated_input() {
   done
 }
 
-# === FZF INTEGRATION ===
+# --- fzf integration ---
 use_fzf() {
   if $force_no_fzf; then return 1; fi
   if $force_fzf; then return 0; fi
@@ -224,7 +222,7 @@ select_file() {
   fi
 }
 
-# === OUTPUT FORMATTING ===
+# --- output formatting ---
 sort_results() {
   case "$sort_by" in
     path) sort ;;
@@ -238,7 +236,8 @@ print_symlink() {
   # Only resolve target if it's not already an absolute path
   # For relative symlink targets, resolve them relative to the symlink's directory
   if [[ -n "$target" && "$target" != /* ]]; then
-    local symlink_dir="$(dirname "$path")"
+    local symlink_dir
+    symlink_dir="$(dirname "$path")"
     target=$(cd "$symlink_dir" && realpath_wrap "$target" 2>/dev/null || echo "$target")
   fi
   echo -e "${PATH_COLOR}${path}${RESET} -> ${TARGET_COLOR}${target}${RESET}"
@@ -251,7 +250,8 @@ print_symlink_json() {
   # Only resolve target if it's not already an absolute path
   # For relative symlink targets, resolve them relative to the symlink's directory
   if [[ -n "$target" && "$target" != /* ]]; then
-    local symlink_dir="$(dirname "$path")"
+    local symlink_dir
+    symlink_dir="$(dirname "$path")"
     target=$(cd "$symlink_dir" && realpath_wrap "$target" 2>/dev/null || echo "$target")
   fi
   printf '{"path":"%s","target":"%s"}\n' "$path" "$target"
@@ -301,7 +301,7 @@ fallback_tree_display() {
   done | sort_results
 }
 
-# === MODE HANDLERS ===
+# --- mode handlers ---
 
 # Find operations for different modes
 find_all_symlinks() {
@@ -406,7 +406,7 @@ handle_count_output() {
   exit 0
 }
 
-# === FLAG PARSING ===
+# --- flag parsing ---
 while [[ $# -gt 0 && "$1" == -* ]]; do
   case "$1" in
     --dry-run) dry_run=true ;;
@@ -415,6 +415,7 @@ while [[ $# -gt 0 && "$1" == -* ]]; do
     --tree-verbose) show_tree_verbose=true ;;
     -o) mode="overwrite" ;;
     -m) mode="merge" ;;
+    -d) mode="delete" ;;
     --list) list_mode=true ;;
     --list-verbose) list_verbose_mode=true ;;
     --broken) broken_mode=true ;;
@@ -445,7 +446,7 @@ if $force_fzf && ! has_fzf; then
   die "❌ fzf not found but --fzf flag was specified. Install with your package manager."
 fi
 
-# === MODE EXECUTION ===
+# --- mode execution ---
 
 # List / List-Verbose mode
 if [[ "$list_mode" == true || "$list_verbose_mode" == true ]]; then
@@ -510,9 +511,8 @@ if [[ "$fix_broken" == true ]]; then
     [[ -z "$dir" ]] && die "❌ No directory selected."
   fi
 
-  local fix_results
   fix_results=$(find_broken_symlinks "$dir")
-  local has_permission_errors=$?
+  has_permission_errors=$?
 
   mapfile -t broken_links < <(echo "$fix_results")
 
@@ -525,7 +525,7 @@ if [[ "$fix_broken" == true ]]; then
     exit 0
   fi
 
-  local deleted=0 updated=0 skipped_count=0
+  deleted=0 updated=0 skipped_count=0
   for link in "${broken_links[@]}"; do
     [[ -z "$link" ]] && continue
     target=$(readlink "$link"); print_symlink "$link" "$target"
@@ -559,7 +559,59 @@ if [[ "$fix_broken" == true ]]; then
   exit 0
 fi
 
-# === CORE SYMLINK LOGIC ===
+# Delete mode
+if [[ "$mode" == "delete" ]]; then
+  target=""
+  if [[ -n "${1:-}" ]]; then
+    target="$1"
+    shift
+  else
+    target=$(select_file "$HOME" "Select a symlink to delete")
+  fi
+
+  [[ -z "$target" ]] && die "❌ No target selected."
+
+  # Resolve path without following symlinks (expand ~ and make absolute)
+  [[ "$target" == "~"* ]] && target="${target/#\~/$HOME}"
+  if [[ "$target" != /* ]]; then
+    target="$(pwd)/$target"
+  fi
+
+  if [[ ! -L "$target" ]]; then
+    die "❌ $target is not a symlink"
+  fi
+
+  link_target=$(readlink "$target")
+
+  if $dry_run; then
+    echo -e "${RED}❌ Would delete:${RESET} $target → $link_target"
+  else
+    rm -f -- "$target"
+    echo -e "${RED}❌ Deleted:${RESET} $target → $link_target"
+  fi
+  exit 0
+fi
+
+# --- core symlink logic ---
+# Check if operation mode is specified before proceeding
+if [[ -z "$mode" && -z "${1:-}" ]]; then
+  echo "❌ No operation specified." >&2
+  echo "" >&2
+  echo "Available operations:" >&2
+  echo "  -o    Overwrite mode (remove existing target, replace with symlink)" >&2
+  echo "  -m    Merge mode (recursively symlink contents into destination)" >&2
+  echo "  -d    Delete mode (remove a symlink)" >&2
+  echo "" >&2
+  echo "Available commands (no operation required):" >&2
+  echo "  --list          List symlinks in a directory" >&2
+  echo "  --broken        Show broken symlinks" >&2
+  echo "  --fix-broken    Interactively fix broken symlinks" >&2
+  echo "  --tree          Show tree view" >&2
+  echo "  --count-only    Count symlinks" >&2
+  echo "  -h, --help      Show help" >&2
+  exit 1
+fi
+
 if [[ -n "${1:-}" ]]; then src="$1"; shift
 else
   src=$(select_directory "$HOME" 1 5 "Select source directory")
@@ -579,7 +631,12 @@ if [[ -e "$target" || -L "$target" ]]; then
   if [[ -z "$mode" ]]; then printf "⚠️  %s exists.\n[o]verwrite / [m]erge / [c]ancel > " "$target"; read -r -n1 choice; echo
     case "$choice" in o|O) mode="overwrite";; m|M) mode="merge";; *) die "❌ Cancelled.";; esac
   fi
-else mode="overwrite"; fi
+fi
+
+# Require operation to be specified
+if [[ -z "$mode" ]]; then
+  die "❌ No operation specified. Use -o (overwrite), -m (merge), or -d (delete)."
+fi
 
 if [[ "$mode" == "overwrite" ]]; then
   $dry_run || { rm -rf -- "$target"; ln -s -- "$src" "$target"; }
@@ -626,7 +683,7 @@ if [[ "$mode" == "merge" ]]; then
   done
 fi
 
-# === END OUTPUT ===
+# --- end output ---
 if $dry_run; then
   echo -e "(${YELLOW}Dry run:${RESET} no changes applied)"
   echo -e "📊 Summary: ${GREEN}${linked}${RESET} would link, ${RED}${overwritten}${RESET} would overwrite, ${YELLOW}${skipped}${RESET} would skip"

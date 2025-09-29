@@ -1,6 +1,6 @@
 .\" Manpage for symlinkit
 .\" Save as symlinkit.1 in ~/.local/share/man/man1/
-.TH SYMLINKIT 1 "September 2025" "1.5.0" "User Commands"
+.TH SYMLINKIT 1 "September 2025" "1.6.0" "User Commands"
 .SH NAME
 symlinkit \- flexible symlink helper with intelligent fzf fallback, dry-run, and symlink overview tools
 .SH SYNOPSIS
@@ -12,14 +12,15 @@ The
 command simplifies creating and inspecting symbolic links, with intelligent
 interactive selection, merge/overwrite modes, dry-run previews, and inspection utilities.
 
+An operation flag (\fB-o\fR, \fB-m\fR, or \fB-d\fR) is required for
+symlink creation or deletion operations. Inspection commands like
+\fB--list\fR, \fB--tree\fR, \fB--broken\fR do not require operation flags.
+
 If SOURCE or DESTINATION are not provided, you will be prompted interactively:
 .br
 \- With \fBfzf\fR (if available): Interactive fuzzy finder with preview
 .br
 \- Without \fBfzf\fR: Manual prompts for typing directory paths
-
-If no mode is specified (-o / -m), and the target already exists,
-you will be prompted to choose overwrite, merge, or cancel.
 
 In addition to symlink creation, symlinkit can list existing symlinks, show
 broken symlinks, produce overviews with \fBtree\fR, and output results in JSON.
@@ -31,6 +32,10 @@ Overwrite mode (remove existing target, replace with symlink).
 .TP
 .B -m
 Merge mode (recursively symlink contents into destination).
+.TP
+.B -d
+Delete mode (remove a symlink). Requires a symlink path as argument.
+Shows the symlink target before deletion. Supports \fB--dry-run\fR.
 .TP
 .B --dry-run
 Preview actions (conflicts default to skip).
@@ -136,6 +141,16 @@ Merge contents:
 symlinkit -m ~/dotfiles/scripts ~/bin
 .fi
 
+Delete a symlink:
+.nf
+symlinkit -d ~/.config/nvim
+.fi
+
+Preview delete (dry-run):
+.nf
+symlinkit --dry-run -d ~/.local/bin/old-link
+.fi
+
 Force fzf usage:
 .nf
 symlinkit --fzf --list
@@ -181,7 +196,7 @@ Written by Adrian Thomas.
 ln(1), fzf(1), tree(1), find(1), jq(1)
 
 .SH VERSION
-symlinkit 1.5.1 (September 2025)
+symlinkit 1.6.0 (September 2025)
 
 .SH REPORTING BUGS
 Report issues or feature requests at:

@@ -30,9 +30,11 @@ Originally built to manage dotfiles, it works anywhere you need to symlink direc
 
 - **Smart Interactive Selection** → Auto-detects fzf, falls back to manual prompts if not available
 - **fzf Control** → Force fzf usage (`--fzf`) or disable it (`--no-fzf`) as needed
+- **Delete mode** → safely remove symlinks with verification
 - Merge mode → recursively symlink directory contents
 - Overwrite mode → replace existing files/folders
 - Dry-run support → see what _would_ happen before committing
+- **Operation flags required** → explicit `-o`, `-m`, or `-d` required for creation/deletion operations
 - `--list [DIR]` → list symlinks (default `$HOME`), with `path -> target` output
 - `--broken [DIR]` → list **broken** symlinks (default `$HOME`)
 - `--fix-broken [DIR]` → interactively fix broken symlinks (delete, update, skip)
@@ -98,11 +100,13 @@ Then:
 man symlinkit
 ```
 
+**Operation flags are required**: You must specify an operation flag (`-o`, `-m`, or `-d`) when creating or deleting symlinks. Running `symlinkit` without an operation will show a helpful error message listing available operations.
+
 If you don't pass SOURCE or DESTINATION, you'll be prompted to pick them interactively:
 - **With fzf** (if available): Interactive fuzzy finder with preview
 - **Without fzf**: Manual prompts asking you to type directory paths
 
-If you don't specify -o or -m, and the target exists, you'll be asked interactively.
+**Inspection commands** like `--list`, `--tree`, `--broken`, etc. do not require operation flags.
 
 ---
 
@@ -111,6 +115,7 @@ If you don't specify -o or -m, and the target exists, you'll be asked interactiv
 ```
 -o → overwrite mode
 -m → merge mode (recursive)
+-d → delete mode (remove symlink)
 --dry-run → preview, skip conflicts
 --dry-run-overwrite → preview, overwrite conflicts
 --fzf → force fzf usage (error if not installed)
@@ -138,6 +143,12 @@ symlinkit -o ~/dotfiles/config ~/.config
 
 # Merge ~/dotfiles/scripts into ~/bin/scripts
 symlinkit -m ~/dotfiles/scripts ~/bin
+
+# Delete a symlink
+symlinkit -d ~/.config/nvim
+
+# Preview delete (dry-run)
+symlinkit --dry-run -d ~/.local/bin/old-link
 
 # Preview merge, skip conflicts
 symlinkit --dry-run -m ~/src/project ~/deploy
