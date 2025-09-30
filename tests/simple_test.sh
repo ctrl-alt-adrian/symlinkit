@@ -19,6 +19,7 @@ SYMLINKIT="./symlinkit"
 TEST_DIR="/tmp/symlinkit_simple_test_$$"
 
 print_test() {
+    CURRENT_TEST="$1"
     echo -e "${YELLOW}Testing: $1${RESET}"
     TESTS_RUN=$((TESTS_RUN + 1))
 }
@@ -30,14 +31,17 @@ pass() {
 
 fail() {
     echo -e "${RED}✗ FAIL: $1${RESET}"
+    echo -e "  ${RED}Test:${RESET} $CURRENT_TEST"
+    echo -e "  ${RED}Location:${RESET} Line $(caller | awk '{print $1}')"
     TESTS_FAILED=$((TESTS_FAILED + 1))
 }
 
 assert_success() {
-    if [[ $? -eq 0 ]]; then
+    local exit_code=$?
+    if [[ $exit_code -eq 0 ]]; then
         pass
     else
-        fail "Command failed"
+        fail "Command failed with exit code $exit_code"
     fi
 }
 
@@ -48,7 +52,13 @@ assert_contains() {
         pass
     else
         echo -e "${RED}✗ FAIL: Expected '$expected' in output${RESET}"
-        echo -e "  Actual: '$output'"
+        echo -e "  ${RED}Test:${RESET} $CURRENT_TEST"
+        echo -e "  ${RED}Expected:${RESET} '$expected'"
+        echo -e "  ${RED}Actual output:${RESET}"
+        echo "$output" | head -10 | sed 's/^/    /'
+        if [[ $(echo "$output" | wc -l) -gt 10 ]]; then
+            echo "    ... (output truncated)"
+        fi
         TESTS_FAILED=$((TESTS_FAILED + 1))
     fi
 }

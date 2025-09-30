@@ -73,10 +73,10 @@ For detailed installation options, see the **[Installation Guide](https://github
 ## Flags
 
 ```
--c → create mode (safe creation, fails if exists)
--o → overwrite mode
--m → merge mode (recursive)
--d → delete mode (remove symlink)
+-c → create mode (safe creation, fails if destination exists)
+-o → overwrite mode (removes existing file/directory at destination, replaces with symlink)
+-m → merge mode (recursively creates symlinks for source directory contents)
+-d → delete mode (removes symlink only, does not affect target)
 -r, --recursive → recursive mode (use with -c, -o, or -d)
   -cr → create recursive (same as -m)
   -or → overwrite recursive with prompts
@@ -103,16 +103,16 @@ For detailed installation options, see the **[Installation Guide](https://github
 ## Examples
 
 ```bash
-# Create a new symlink
+# Create a new symlink (fails if ~/.config already exists)
 symlinkit -c ~/dotfiles/config ~/.config
 
-# Merge directory contents recursively
+# Merge directory contents recursively (creates symlinks inside destination)
 symlinkit -m ~/dotfiles/scripts ~/bin
 
-# Delete a symlink
+# Delete a symlink (only removes the link, not what it points to)
 symlinkit -d ~/.config/nvim
 
-# Preview changes before applying (dry-run)
+# Preview changes before applying (dry-run shows what would happen)
 symlinkit --dry-run -m ~/src/project ~/deploy
 
 # Disable fzf interactive selection

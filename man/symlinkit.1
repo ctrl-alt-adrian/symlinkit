@@ -28,19 +28,19 @@ broken symlinks, produce overviews with \fBtree\fR, and output results in JSON.
 .SH OPTIONS
 .TP
 .B -c
-Create mode (create a new symlink). Fails if target already exists,
+Create mode (create a new symlink). Fails if destination path already exists,
 suggesting \fB-o\fR or \fB-m\fR alternatives. Supports \fB--dry-run\fR.
 .TP
 .B -o
-Overwrite mode (remove existing target, replace with symlink).
+Overwrite mode (removes existing file/directory at destination path, replaces with symlink to source).
 .TP
 .B -m
-Merge mode (recursively symlink contents into destination).
+Merge mode (recursively creates symlinks for each file in source directory, placing them in destination).
 .TP
 .B -d
-Delete mode (remove a symlink). Requires a symlink path as argument.
-Shows the symlink target before deletion. Supports \fB--dry-run\fR.
-Can be combined with \fB-r\fR for recursive deletion.
+Delete mode (removes a symlink only, does not affect what the symlink points to).
+Requires a symlink path as argument. Shows the symlink target before deletion.
+Supports \fB--dry-run\fR. Can be combined with \fB-r\fR for recursive deletion.
 .TP
 .B -r, --recursive
 Recursive mode (use with \fB-c\fR, \fB-o\fR, or \fB-d\fR).

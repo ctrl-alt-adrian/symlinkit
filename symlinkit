@@ -5,10 +5,10 @@
 #   symlinkit [FLAGS] [SOURCE] [DESTINATION]
 #
 # Flags:
-#   -c                     Create mode (create a new symlink)
-#   -o                     Overwrite mode (remove existing target, replace with symlink)
-#   -m                     Merge mode (recursively symlink contents into destination)
-#   -d                     Delete mode (remove a symlink)
+#   -c                     Create mode (create a new symlink, fails if destination exists)
+#   -o                     Overwrite mode (remove existing file/directory at destination, replace with symlink)
+#   -m                     Merge mode (recursively create symlinks for source directory contents into destination)
+#   -d                     Delete mode (remove a symlink, does not affect the target it points to)
 #   -r, --recursive        Recursive mode (use with -c, -o, or -d)
 #                          -cr: create symlinks recursively (same as -m)
 #                          -or: overwrite recursively with prompts
@@ -90,16 +90,24 @@ trap "echo; die '❌ Cancelled by user'" SIGINT
 # Cross-platform path resolution with WSL and macOS support
 realpath_wrap() {
   local p="$1"
+  local result
   if [[ "$p" == "~"* ]]; then p="${p/#\~/$HOME}"; fi
   if $IS_WSL && [[ "$p" =~ ^[A-Za-z]:\\|\\|/mnt/[a-z]/ ]]; then
     if command -v wslpath >/dev/null 2>&1; then
       p="${p//\\/\/}"; wslpath -u "$p"; return
     fi
   fi
-  if command -v realpath >/dev/null 2>&1; then realpath -m -- "$p"
-  elif [[ "$OS" == "macOS" ]] && command -v grealpath >/dev/null 2>&1; then grealpath -m -- "$p"
-  elif command -v python3 >/dev/null 2>&1; then python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$p"
-  else die "❌ Could not resolve path '$p'."; fi
+  # Check grealpath first on macOS (GNU version), then realpath
+  if [[ "$OS" == "macOS" ]] && command -v grealpath >/dev/null 2>&1; then
+    result=$(grealpath -m -- "$p" 2>/dev/null) || result="$p"
+  elif command -v realpath >/dev/null 2>&1; then
+    result=$(realpath -m -- "$p" 2>/dev/null) || result="$p"
+  elif command -v python3 >/dev/null 2>&1; then
+    result=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$p" 2>/dev/null) || result="$p"
+  else
+    result="$p"
+  fi
+  echo "$result"
 }
 
 # Cross-platform find wrapper (uses gfind on macOS if available)
@@ -740,7 +748,11 @@ else
 fi
 [[ -z "$dest" ]] && die "❌ No destination selected."
 
-src=$(realpath_wrap "$src"); dest=$(realpath_wrap "$dest"); $dry_run || mkdir -p -- "$dest"
+src=$(realpath_wrap "$src")
+dest=$(realpath_wrap "$dest")
+if ! $dry_run; then
+  mkdir -p -- "$dest"
+fi
 linkname=$(basename -- "$src"); target="$dest/$linkname"
 
 if [[ -e "$target" || -L "$target" ]]; then
@@ -770,7 +782,11 @@ if [[ "$mode" == "create" ]]; then
     die "❌ Target already exists: $target\n   Use -o to overwrite or -m to merge into existing target"
   fi
 
-  $dry_run || ln -s -- "$src" "$target"
+  if ! $dry_run; then
+    if ! ln -s -- "$src" "$target" 2>/dev/null; then
+      die "❌ Failed to create symlink: $target → $src\n   Check permissions and path validity"
+    fi
+  fi
 
   if $dry_run; then
     echo -e "${GREEN}✅ Would create symlink:${RESET} $target → $src"
@@ -780,18 +796,43 @@ if [[ "$mode" == "create" ]]; then
 fi
 
 if [[ "$mode" == "overwrite" ]]; then
-  $dry_run || { rm -rf -- "$target"; ln -s -- "$src" "$target"; }
+  if ! $dry_run; then
+    # Security: Only use rm -f for symlinks, rm -rf for directories/files
+    if [[ -L "$target" ]]; then
+      if ! rm -f -- "$target" 2>/dev/null; then
+        die "❌ Failed to remove existing symlink: $target\n   Check permissions"
+      fi
+    else
+      if ! rm -rf -- "$target" 2>/dev/null; then
+        die "❌ Failed to remove existing target: $target\n   Check permissions"
+      fi
+    fi
+    if ! ln -s -- "$src" "$target" 2>/dev/null; then
+      die "❌ Failed to create symlink after removal: $target → $src\n   Check permissions and path validity"
+    fi
+  fi
   $dry_run && echo -e "${RED}🔄 Would overwrite:${RESET} $target → $src" || echo -e "${RED}🔄 Overwritten:${RESET} $target → $src"
 fi
 
 if [[ "$mode" == "merge" ]]; then
-  mkdir -p -- "$target"; overwrite_all=$merge_overwrite_all
+  if ! $dry_run; then
+    if ! mkdir -p -- "$target" 2>/dev/null; then
+      die "❌ Failed to create target directory: $target\n   Check permissions"
+    fi
+  fi
+  overwrite_all=$merge_overwrite_all
   merge_output=$(safe_find "$src")
   has_permission_errors=$?
   mapfile -t items < <(echo "$merge_output")
   for item in "${items[@]}"; do [[ -z "$item" || "$item" == "$src" ]] && continue
     rel="${item#"$src"/}"; dest_item="$target/$rel"
-    if [[ -d "$item" ]]; then $dry_run || mkdir -p -- "$dest_item"
+    if [[ -d "$item" ]]; then
+      if ! $dry_run; then
+        if ! mkdir -p -- "$dest_item" 2>/dev/null; then
+          echo -e "${RED}⚠️  Failed to create directory:${RESET} $dest_item (skipping)" >&2
+          continue
+        fi
+      fi
     else
        if [[ -e "$dest_item" || -L "$dest_item" ]]; then
          if $dry_run; then
@@ -799,14 +840,36 @@ if [[ "$mode" == "merge" ]]; then
            else echo -e "${YELLOW}⏭️ Would skip:${RESET} $dest_item"; fi
          else
            if $overwrite_all; then
-             rm -rf -- "$dest_item"; ln -s -- "$item" "$dest_item"; echo -e "${RED}🔄 Overwritten (all):${RESET} $dest_item"; ((overwritten++))
+             # Security: Check if target is symlink first
+             local rm_cmd="rm -rf"
+             [[ -L "$dest_item" ]] && rm_cmd="rm -f"
+             if $rm_cmd -- "$dest_item" 2>/dev/null && ln -s -- "$item" "$dest_item" 2>/dev/null; then
+               echo -e "${RED}🔄 Overwritten (all):${RESET} $dest_item"; ((overwritten++))
+             else
+               echo -e "${RED}⚠️  Failed to overwrite:${RESET} $dest_item (skipping)" >&2
+             fi
            else
              printf "⚠️  Conflict: %s exists.\n[s]kip / [o]verwrite / [a]ll overwrite / [c]ancel > " "$dest_item"
              read -r -n1 action; echo
              case "$action" in
                s|S) echo -e "${YELLOW}⏭️ Skipped:${RESET} $dest_item"; ((skipped++)) ;;
-               o|O) rm -rf -- "$dest_item"; ln -s -- "$item" "$dest_item"; echo -e "${RED}🔄 Overwritten:${RESET} $dest_item"; ((overwritten++)) ;;
-               a|A) overwrite_all=true; rm -rf -- "$dest_item"; ln -s -- "$item" "$dest_item"; echo -e "${RED}🔄 Overwritten (all):${RESET} $dest_item"; ((overwritten++)) ;;
+               o|O) # Security: Check if target is symlink first
+                    local rm_cmd="rm -rf"
+                    [[ -L "$dest_item" ]] && rm_cmd="rm -f"
+                    if $rm_cmd -- "$dest_item" 2>/dev/null && ln -s -- "$item" "$dest_item" 2>/dev/null; then
+                      echo -e "${RED}🔄 Overwritten:${RESET} $dest_item"; ((overwritten++))
+                    else
+                      echo -e "${RED}⚠️  Failed to overwrite:${RESET} $dest_item" >&2; ((skipped++))
+                    fi ;;
+               a|A) overwrite_all=true
+                    # Security: Check if target is symlink first
+                    local rm_cmd="rm -rf"
+                    [[ -L "$dest_item" ]] && rm_cmd="rm -f"
+                    if $rm_cmd -- "$dest_item" 2>/dev/null && ln -s -- "$item" "$dest_item" 2>/dev/null; then
+                      echo -e "${RED}🔄 Overwritten (all):${RESET} $dest_item"; ((overwritten++))
+                    else
+                      echo -e "${RED}⚠️  Failed to overwrite:${RESET} $dest_item" >&2; ((skipped++))
+                    fi ;;
                *) die "❌ Cancelled." ;;
              esac
            fi
@@ -816,8 +879,12 @@ if [[ "$mode" == "merge" ]]; then
           echo -e "${GREEN}✅ Would link:${RESET} $dest_item"
           ((linked++))
         else
-          ln -s -- "$item" "$dest_item"
-          echo -e "${GREEN}✅ Linked:${RESET} $dest_item"
+          if ln -s -- "$item" "$dest_item" 2>/dev/null; then
+            echo -e "${GREEN}✅ Linked:${RESET} $dest_item"
+            ((linked++))
+          else
+            echo -e "${RED}⚠️  Failed to link:${RESET} $dest_item" >&2
+          fi
         fi
       fi
     fi
