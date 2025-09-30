@@ -28,7 +28,13 @@ jobs:
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install shellcheck fzf tree jq coreutils findutils
+          # Install or upgrade dependencies
+          brew list shellcheck &>/dev/null || brew install shellcheck
+          brew list fzf &>/dev/null || brew install fzf
+          brew list tree &>/dev/null || brew install tree
+          brew list jq &>/dev/null || brew install jq
+          brew list coreutils &>/dev/null || brew install coreutils
+          brew list findutils &>/dev/null || brew install findutils
 
       - name: Run shellcheck on symlinkit
         run: shellcheck symlinkit
