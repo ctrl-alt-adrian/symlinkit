@@ -841,9 +841,12 @@ if [[ "$mode" == "merge" ]]; then
          else
            if $overwrite_all; then
              # Security: Check if target is symlink first
-             local rm_cmd="rm -rf"
-             [[ -L "$dest_item" ]] && rm_cmd="rm -f"
-             if $rm_cmd -- "$dest_item" 2>/dev/null && ln -s -- "$item" "$dest_item" 2>/dev/null; then
+             if [[ -L "$dest_item" ]]; then
+               rm -f -- "$dest_item" 2>/dev/null
+             else
+               rm -rf -- "$dest_item" 2>/dev/null
+             fi
+             if ln -s -- "$item" "$dest_item" 2>/dev/null; then
                echo -e "${RED}🔄 Overwritten (all):${RESET} $dest_item"; ((overwritten++))
              else
                echo -e "${RED}⚠️  Failed to overwrite:${RESET} $dest_item (skipping)" >&2
@@ -854,18 +857,24 @@ if [[ "$mode" == "merge" ]]; then
              case "$action" in
                s|S) echo -e "${YELLOW}⏭️ Skipped:${RESET} $dest_item"; ((skipped++)) ;;
                o|O) # Security: Check if target is symlink first
-                    local rm_cmd="rm -rf"
-                    [[ -L "$dest_item" ]] && rm_cmd="rm -f"
-                    if $rm_cmd -- "$dest_item" 2>/dev/null && ln -s -- "$item" "$dest_item" 2>/dev/null; then
+                    if [[ -L "$dest_item" ]]; then
+                      rm -f -- "$dest_item" 2>/dev/null
+                    else
+                      rm -rf -- "$dest_item" 2>/dev/null
+                    fi
+                    if ln -s -- "$item" "$dest_item" 2>/dev/null; then
                       echo -e "${RED}🔄 Overwritten:${RESET} $dest_item"; ((overwritten++))
                     else
                       echo -e "${RED}⚠️  Failed to overwrite:${RESET} $dest_item" >&2; ((skipped++))
                     fi ;;
                a|A) overwrite_all=true
                     # Security: Check if target is symlink first
-                    local rm_cmd="rm -rf"
-                    [[ -L "$dest_item" ]] && rm_cmd="rm -f"
-                    if $rm_cmd -- "$dest_item" 2>/dev/null && ln -s -- "$item" "$dest_item" 2>/dev/null; then
+                    if [[ -L "$dest_item" ]]; then
+                      rm -f -- "$dest_item" 2>/dev/null
+                    else
+                      rm -rf -- "$dest_item" 2>/dev/null
+                    fi
+                    if ln -s -- "$item" "$dest_item" 2>/dev/null; then
                       echo -e "${RED}🔄 Overwritten (all):${RESET} $dest_item"; ((overwritten++))
                     else
                       echo -e "${RED}⚠️  Failed to overwrite:${RESET} $dest_item" >&2; ((skipped++))
