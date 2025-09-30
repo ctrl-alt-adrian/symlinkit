@@ -545,7 +545,11 @@ if [[ "$fix_broken" == true ]]; then
   fix_results=$(find_broken_symlinks "$dir")
   has_permission_errors=$?
 
-  mapfile -t broken_links < <(echo "$fix_results")
+  # Use while read for Bash 3.2 compatibility (macOS)
+  broken_links=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && broken_links+=("$line")
+  done < <(echo "$fix_results")
 
   if [[ "${#broken_links[@]}" -eq 0 ]] || [[ -z "${broken_links[0]}" ]]; then
     if [[ "$has_permission_errors" -eq 0 ]]; then
@@ -642,7 +646,11 @@ if [[ "$mode" == "delete" ]]; then
     symlinks_to_delete=$(find_all_symlinks "$target")
     has_permission_errors=$?
 
-    mapfile -t links < <(echo "$symlinks_to_delete")
+    # Use while read for Bash 3.2 compatibility (macOS)
+    links=()
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && links+=("$line")
+    done < <(echo "$symlinks_to_delete")
 
     if [[ "${#links[@]}" -eq 0 ]] || [[ -z "${links[0]}" ]]; then
       if [[ "$has_permission_errors" -eq 0 ]]; then
@@ -823,7 +831,11 @@ if [[ "$mode" == "merge" ]]; then
   overwrite_all=$merge_overwrite_all
   merge_output=$(safe_find "$src")
   has_permission_errors=$?
-  mapfile -t items < <(echo "$merge_output")
+  # Use while read for Bash 3.2 compatibility (macOS)
+  items=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && items+=("$line")
+  done < <(echo "$merge_output")
   for item in "${items[@]}"; do [[ -z "$item" || "$item" == "$src" ]] && continue
     rel="${item#"$src"/}"; dest_item="$target/$rel"
     if [[ -d "$item" ]]; then
