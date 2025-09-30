@@ -36,8 +36,11 @@ jobs:
       - name: Run shellcheck on install.sh
         run: shellcheck install.sh
 
+      - name: Generate test files
+        run: ./generate-tests.sh
+
       - name: Make scripts executable
-        run: chmod +x symlinkit simple_test.sh
+        run: chmod +x symlinkit *.sh
 
       - name: Run test suite
         run: ./simple_test.sh
