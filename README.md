@@ -313,6 +313,19 @@ chmod +x symlinkit
 
 Always run the test suite before submitting changes. See the [Testing](#testing) section above for complete instructions.
 
+### Continuous Integration
+
+All pull requests are automatically tested on both **Ubuntu** and **macOS** via GitHub Actions:
+
+- ✅ **Shellcheck**: Ensures no shell script errors
+- ✅ **Test suite**: Runs all 31 tests on both platforms
+- ✅ **Version check**: Verifies version consistency across files
+
+**Pull requests cannot be merged if:**
+- Shellcheck reports errors
+- Any tests fail on Ubuntu or macOS
+- Version numbers are inconsistent
+
 ### Submitting Changes
 
 1. **Create a feature branch**: `git checkout -b feature/your-feature`
@@ -320,6 +333,7 @@ Always run the test suite before submitting changes. See the [Testing](#testing)
 3. **Test thoroughly** on your target platform(s)
 4. **Update version info** in `symlinkit`, `CHANGELOG.md`, and `man/symlinkit.1`
 5. **Submit a pull request** with a clear description
+6. **Wait for CI checks** to pass before requesting review
 
 ### What to Contribute
 

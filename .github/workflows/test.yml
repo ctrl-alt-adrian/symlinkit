@@ -1,0 +1,53 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck fzf tree jq
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install shellcheck fzf tree jq coreutils findutils
+
+      - name: Run shellcheck on symlinkit
+        run: shellcheck symlinkit
+
+      - name: Run shellcheck on install.sh
+        run: shellcheck install.sh
+
+      - name: Make scripts executable
+        run: chmod +x symlinkit simple_test.sh
+
+      - name: Run test suite
+        run: ./simple_test.sh
+
+      - name: Verify version matches
+        run: |
+          version=$(grep '^VERSION=' symlinkit | cut -d'"' -f2)
+          man_version=$(grep '^.TH SYMLINKIT' man/symlinkit.1 | awk '{print $4}' | tr -d '"')
+          if [ "$version" != "$man_version" ]; then
+            echo "Version mismatch: symlinkit=$version, man page=$man_version"
+            exit 1
+          fi
+          echo "Version check passed: $version"

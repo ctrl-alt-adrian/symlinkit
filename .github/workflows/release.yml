@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create release tarball
+        run: |
+          version="${{ steps.get_version.outputs.VERSION }}"
+          mkdir -p "symlinkit-$version"
+          cp symlinkit install.sh README.md LICENSE CHANGELOG.md "symlinkit-$version/"
+          cp -r man "symlinkit-$version/"
+          tar -czf "symlinkit-$version.tar.gz" "symlinkit-$version"
+          rm -rf "symlinkit-$version"
+
+      - name: Generate checksums
+        run: |
+          sha256sum symlinkit-*.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            symlinkit-*.tar.gz
+            SHA256SUMS
+          body: |
+            ## symlinkit ${{ steps.get_version.outputs.VERSION }}
+
+            See [CHANGELOG.md](https://github.com/ctrl-alt-adrian/symlinkit/blob/main/CHANGELOG.md) for details.
+
+            ### Installation
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/install.sh | bash
+            ```
+
+            Or download and extract the tarball manually.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
