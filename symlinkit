@@ -9,6 +9,10 @@
 #   -o                     Overwrite mode (remove existing target, replace with symlink)
 #   -m                     Merge mode (recursively symlink contents into destination)
 #   -d                     Delete mode (remove a symlink)
+#   -r, --recursive        Recursive mode (use with -c, -o, or -d)
+#                          -cr: create symlinks recursively (same as -m)
+#                          -or: overwrite recursively with prompts
+#                          -dr: delete symlinks in directory interactively
 #   --dry-run              Preview actions (conflicts default to "skip")
 #   --dry-run-overwrite    Preview actions (conflicts default to "overwrite")
 #   --tree                 Minimal tree view (standalone or after linking)
@@ -31,7 +35,7 @@
 #
 
 # --- configuration ---
-VERSION="1.7.0"
+VERSION="1.8.0"
 readonly DEFAULT_DEPTH=3
 
 # --- os detection ---
@@ -71,6 +75,7 @@ depth=$DEFAULT_DEPTH
 fix_broken=false
 force_fzf=false
 force_no_fzf=false
+recursive=false
 
 linked=0
 overwritten=0
@@ -329,10 +334,14 @@ handle_list_output() {
   local has_permission_errors="$3"
 
   local count
-  count=$(echo "$symlinks" | wc -l)
+  if [[ -z "$symlinks" || "$symlinks" =~ ^[[:space:]]*$ ]]; then
+    count=0
+  else
+    count=$(echo "$symlinks" | wc -l)
+  fi
 
   [[ "$count" -eq 0 ]] && {
-    if $has_permission_errors; then
+    if [[ "$has_permission_errors" -eq 0 ]]; then
       echo "⚠️ Could not scan all directories due to permissions. No symlinks found in accessible areas."
     else
       echo "❌ No symlinks found in this directory"
@@ -365,10 +374,14 @@ handle_broken_output() {
   local has_permission_errors="$3"
 
   local broken_count
-  broken_count=$(echo "$broken_symlinks" | wc -l)
+  if [[ -z "$broken_symlinks" || "$broken_symlinks" =~ ^[[:space:]]*$ ]]; then
+    broken_count=0
+  else
+    broken_count=$(echo "$broken_symlinks" | wc -l)
+  fi
 
   if [[ "$broken_count" -eq 0 ]]; then
-    if $has_permission_errors; then
+    if [[ "$has_permission_errors" -eq 0 ]]; then
       echo "⚠️ Could not scan all directories due to permissions. No broken symlinks found in accessible areas."
     else
       echo "✅ You're good, no broken symlinks found in $dir"
@@ -397,7 +410,11 @@ handle_count_output() {
   local has_permission_errors="$3"
 
   local count
-  count=$(echo "$symlinks" | wc -l)
+  if [[ -z "$symlinks" || "$symlinks" =~ ^[[:space:]]*$ ]]; then
+    count=0
+  else
+    count=$(echo "$symlinks" | wc -l)
+  fi
 
   if $json; then
     printf '{"directory":"%s","count":%d}\n' "$dir" "$count"
@@ -418,6 +435,10 @@ while [[ $# -gt 0 && "$1" == -* ]]; do
     -o) mode="overwrite" ;;
     -m) mode="merge" ;;
     -d) mode="delete" ;;
+    -r|--recursive) recursive=true ;;
+    -cr|-rc) mode="create"; recursive=true ;;
+    -or|-ro) mode="overwrite"; recursive=true ;;
+    -dr|-rd) mode="delete"; recursive=true ;;
     --list) list_mode=true ;;
     --list-verbose) list_verbose_mode=true ;;
     --broken) broken_mode=true ;;
@@ -518,8 +539,8 @@ if [[ "$fix_broken" == true ]]; then
 
   mapfile -t broken_links < <(echo "$fix_results")
 
-  if [[ "${#broken_links[@]}" -eq 0 ]]; then
-    if $has_permission_errors; then
+  if [[ "${#broken_links[@]}" -eq 0 ]] || [[ -z "${broken_links[0]}" ]]; then
+    if [[ "$has_permission_errors" -eq 0 ]]; then
       echo "⚠️ Could not scan all directories due to permissions. No broken symlinks found in accessible areas."
     else
       echo "✅ You're good, no broken symlinks found in $dir"
@@ -528,16 +549,39 @@ if [[ "$fix_broken" == true ]]; then
   fi
 
   deleted=0 updated=0 skipped_count=0
+  delete_all=false
+
   for link in "${broken_links[@]}"; do
     [[ -z "$link" ]] && continue
-    target=$(readlink "$link"); print_symlink "$link" "$target"
-    printf "[d]elete / [u]pdate / [s]kip > "; read -r -n1 action; echo
+    target=$(readlink "$link")
+
+    if $delete_all; then
+      if $dry_run; then
+        echo -e "${RED}❌ Would delete (all)${RESET}: $link"
+      else
+        rm -f -- "$link"
+        echo -e "${RED}❌ Deleted (all)${RESET}: $link"
+      fi
+      ((deleted++))
+      continue
+    fi
+
+    print_symlink "$link" "$target"
+    printf "[d]elete / [a]ll delete / [u]pdate / [s]kip > "; read -r -n1 action; echo
     case "$action" in
       d|D) if $dry_run; then
              echo -e "${RED}❌ Would delete${RESET}: $link"
            else
              rm -f -- "$link"
              echo -e "${RED}❌ Deleted${RESET}: $link"
+           fi
+           ((deleted++)) ;;
+      a|A) delete_all=true
+           if $dry_run; then
+             echo -e "${RED}❌ Would delete (all)${RESET}: $link"
+           else
+             rm -f -- "$link"
+             echo -e "${RED}❌ Deleted (all)${RESET}: $link"
            fi
            ((deleted++)) ;;
       u|U) echo "Enter new target path (blank for interactive selection):"; read -r new_target
@@ -568,17 +612,86 @@ if [[ "$mode" == "delete" ]]; then
     target="$1"
     shift
   else
-    target=$(select_file "$HOME" "Select a symlink to delete")
+    if $recursive; then
+      target=$(select_directory "$HOME" 0 5 "Select a directory to delete symlinks from")
+    else
+      target=$(select_file "$HOME" "Select a symlink to delete")
+    fi
   fi
 
   [[ -z "$target" ]] && die "❌ No target selected."
 
-  # Resolve path without following symlinks (expand ~ and make absolute)
+  # Resolve path without following symlinks
   [[ "$target" == "~"* ]] && target="${target/#\~/$HOME}"
   if [[ "$target" != /* ]]; then
     target="$(pwd)/$target"
   fi
 
+  # Recursive delete mode
+  if $recursive; then
+    [[ ! -d "$target" ]] && die "❌ $target is not a directory"
+
+    symlinks_to_delete=$(find_all_symlinks "$target")
+    has_permission_errors=$?
+
+    mapfile -t links < <(echo "$symlinks_to_delete")
+
+    if [[ "${#links[@]}" -eq 0 ]] || [[ -z "${links[0]}" ]]; then
+      if [[ "$has_permission_errors" -eq 0 ]]; then
+        echo "⚠️ Could not scan all directories due to permissions. No symlinks found in accessible areas."
+      else
+        echo "✅ No symlinks found in $target"
+      fi
+      exit 0
+    fi
+
+    echo "Found ${#links[@]} symlink(s) in $target"
+    deleted=0 skipped_count=0
+    delete_all=false
+
+    for link in "${links[@]}"; do
+      [[ -z "$link" ]] && continue
+      link_target=$(readlink "$link")
+
+      if $delete_all; then
+        if $dry_run; then
+          echo -e "${RED}❌ Would delete (all)${RESET}: $link"
+        else
+          rm -f -- "$link"
+          echo -e "${RED}❌ Deleted (all)${RESET}: $link"
+        fi
+        ((deleted++))
+        continue
+      fi
+
+      print_symlink "$link" "$link_target"
+      printf "[d]elete / [a]ll delete / [s]kip / [q]uit > "; read -r -n1 action; echo
+      case "$action" in
+        d|D) if $dry_run; then
+               echo -e "${RED}❌ Would delete${RESET}: $link"
+             else
+               rm -f -- "$link"
+               echo -e "${RED}❌ Deleted${RESET}: $link"
+             fi
+             ((deleted++)) ;;
+        a|A) delete_all=true
+             if $dry_run; then
+               echo -e "${RED}❌ Would delete (all)${RESET}: $link"
+             else
+               rm -f -- "$link"
+               echo -e "${RED}❌ Deleted (all)${RESET}: $link"
+             fi
+             ((deleted++)) ;;
+        q|Q) echo "Exiting..."; break ;;
+        *) echo "⏭️ Skipped: $link"; ((skipped_count++)) ;;
+      esac
+    done
+
+    echo -e "📊 Summary: ${RED}${deleted}${RESET} deleted, ${YELLOW}${skipped_count}${RESET} skipped"
+    exit 0
+  fi
+
+  # Single file delete mode
   if [[ ! -L "$target" ]]; then
     die "❌ $target is not a symlink"
   fi
@@ -641,6 +754,17 @@ if [[ -z "$mode" ]]; then
   die "❌ No operation specified. Use -c (create), -o (overwrite), -m (merge), or -d (delete)."
 fi
 
+# Convert create/overwrite + recursive to merge mode
+merge_overwrite_all=false
+if $recursive; then
+  if [[ "$mode" == "create" ]]; then
+    mode="merge"
+  elif [[ "$mode" == "overwrite" ]]; then
+    mode="merge"
+    merge_overwrite_all=true
+  fi
+fi
+
 if [[ "$mode" == "create" ]]; then
   if [[ -e "$target" || -L "$target" ]]; then
     die "❌ Target already exists: $target\n   Use -o to overwrite or -m to merge into existing target"
@@ -661,7 +785,7 @@ if [[ "$mode" == "overwrite" ]]; then
 fi
 
 if [[ "$mode" == "merge" ]]; then
-  mkdir -p -- "$target"; overwrite_all=false
+  mkdir -p -- "$target"; overwrite_all=$merge_overwrite_all
   merge_output=$(safe_find "$src")
   has_permission_errors=$?
   mapfile -t items < <(echo "$merge_output")

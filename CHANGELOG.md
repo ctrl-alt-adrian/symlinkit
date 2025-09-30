@@ -3,6 +3,81 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.8.0] - 2025-09-30
+
+### 🚀 Major Features
+
+- **Flag Chaining**: New shorthand syntax for combining operations with recursive mode
+  - **`-cr` or `-rc`**: Create recursive (equivalent to `-m` merge mode)
+  - **`-or` or `-ro`**: Overwrite recursive with interactive prompts
+  - **`-dr` or `-rd`**: Delete recursive (interactively delete symlinks in directory)
+  - Provides more intuitive syntax while maintaining backwards compatibility with `-m`
+
+- **Recursive Delete Mode (`-dr`)**: Interactively delete all symlinks in a directory
+  - Interactive prompts: `[d]elete / [a]ll delete / [s]kip / [q]uit`
+  - Works with `--dry-run` for safe previewing
+  - Source files are always preserved (only symlinks deleted)
+  - Summary shows deleted/skipped counts
+  - Usage: `symlinkit -dr /path/to/directory`
+
+- **Universal `[a]ll` Option**: All interactive modes now support bulk actions
+  - **Merge mode**: `[s]kip / [o]verwrite / [a]ll overwrite / [c]ancel`
+  - **Fix-broken mode**: `[d]elete / [a]ll delete / [u]pdate / [s]kip`
+  - **Recursive delete**: `[d]elete / [a]ll delete / [s]kip / [q]uit`
+  - Press `[a]` once to apply action to all remaining items
+  - Consistent UX across all interactive operations
+
+### 🔧 Improvements
+
+- **Enhanced Dry-Run Support**: Comprehensive dry-run verification for delete operations
+  - Single delete: Shows "Would delete" without removing link
+  - Recursive delete: Shows "Would delete (all)" for bulk operations
+  - Fix-broken: Shows "Would delete (all)" for broken link removal
+  - All delete modes thoroughly tested with dry-run
+
+- **Better User Experience**: Improved interactive prompts and feedback
+  - All modes now show consistent `[a]ll` options
+  - Clear "(all)" indicators when bulk mode is active
+  - Quit option `[q]uit` added to recursive delete
+  - More natural workflow for managing multiple symlinks
+
+### 🐛 Fixes
+
+- **Empty Symlink List Bug**: Fixed false positive showing "Found 1 symlink" with empty results
+  - Now correctly shows "No symlinks found in this directory"
+  - Fixed in `--list`, `--broken`, `--count-only`, and `--fix-broken` modes
+  - Proper empty string detection instead of relying on `wc -l`
+
+- **Permission Error Handling**: Fixed boolean handling in permission error checks
+  - Changed from `$has_permission_errors` to `[[ "$has_permission_errors" -eq 0 ]]`
+  - Eliminates "command not found" errors
+  - Consistent error handling across all modes
+
+### 🧪 Testing
+
+- **Comprehensive Test Coverage**: 37 tests now pass (up from 27)
+  - Added tests for flag chaining (`-cr`, `-or`, `-dr`)
+  - Added tests for `[a]ll` options across all modes
+  - Added tests for dry-run with delete operations
+  - Added test for empty symlink list fix
+  - Enhanced existing tests for recursive operations
+
+### 📝 Documentation
+
+- **README.md**: Updated with new flag chaining syntax and features
+- **man page**: Updated to version 1.8.0 with recursive flag documentation
+- **CHANGELOG.md**: Comprehensive documentation of all changes
+- **CLAUDE.md**: Updated Interactive Prompts section with all `[a]ll` options
+- **Help text**: Updated with `-r, --recursive` usage examples
+
+### 🎯 Breaking Changes
+
+- **None**: All changes are backwards compatible
+- `-m` (merge mode) still works exactly as before
+- New flag chaining syntax is additive (shortcuts for existing combinations)
+
+---
+
 ## [1.7.0] - 2025-09-29
 
 ### 🚀 Major Features

@@ -1,6 +1,6 @@
 .\" Manpage for symlinkit
 .\" Save as symlinkit.1 in ~/.local/share/man/man1/
-.TH SYMLINKIT 1 "September 2025" "1.7.0" "User Commands"
+.TH SYMLINKIT 1 "September 2025" "1.8.0" "User Commands"
 .SH NAME
 symlinkit \- flexible symlink helper with intelligent fzf fallback, dry-run, and symlink overview tools
 .SH SYNOPSIS
@@ -40,6 +40,18 @@ Merge mode (recursively symlink contents into destination).
 .B -d
 Delete mode (remove a symlink). Requires a symlink path as argument.
 Shows the symlink target before deletion. Supports \fB--dry-run\fR.
+Can be combined with \fB-r\fR for recursive deletion.
+.TP
+.B -r, --recursive
+Recursive mode (use with \fB-c\fR, \fB-o\fR, or \fB-d\fR).
+.br
+\- \fB-cr\fR: Create symlinks recursively (equivalent to \fB-m\fR merge mode)
+.br
+\- \fB-or\fR: Overwrite recursively with interactive prompts for conflicts
+.br
+\- \fB-dr\fR: Delete symlinks in directory interactively
+.br
+All recursive operations support the \fB[a]ll\fR option to apply actions to all remaining items.
 .TP
 .B --dry-run
 Preview actions (conflicts default to skip).
@@ -150,14 +162,34 @@ Merge contents:
 symlinkit -m ~/dotfiles/scripts ~/bin
 .fi
 
+Create recursive (equivalent to merge):
+.nf
+symlinkit -cr ~/dotfiles/config ~/.config
+.fi
+
+Overwrite recursive with interactive prompts:
+.nf
+symlinkit -or ~/dotfiles/scripts ~/bin
+.fi
+
 Delete a symlink:
 .nf
 symlinkit -d ~/.config/nvim
 .fi
 
+Delete all symlinks in a directory recursively:
+.nf
+symlinkit -dr ~/.config
+.fi
+
 Preview delete (dry-run):
 .nf
 symlinkit --dry-run -d ~/.local/bin/old-link
+.fi
+
+Preview recursive delete (dry-run):
+.nf
+symlinkit --dry-run -dr ~/test-links
 .fi
 
 Force fzf usage:

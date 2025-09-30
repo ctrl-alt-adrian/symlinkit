@@ -33,11 +33,14 @@ Originally built to manage dotfiles, it works anywhere you need to symlink direc
 
 - **Smart Interactive Selection** → Auto-detects fzf, falls back to manual prompts if not available
 - **fzf Control** → Force fzf usage (`--fzf`) or disable it (`--no-fzf`) as needed
+- **Flag Chaining** → Combine operations with recursive mode: `-cr`, `-or`, `-dr`
 - **Create mode** → safely create new symlinks without overwriting existing files
-- **Delete mode** → safely remove symlinks with verification
+- **Delete mode** → safely remove symlinks with verification (single or recursive)
+- **Recursive delete** → interactively delete all symlinks in a directory with `[a]ll` option
 - **Merge mode** → recursively symlink directory contents
 - **Overwrite mode** → replace existing files/folders
-- **Dry-run support** → see what _would_ happen before committing
+- **Universal `[a]ll` option** → Apply actions to all items in merge, fix-broken, and recursive delete modes
+- **Dry-run support** → see what _would_ happen before committing (works with all modes)
 - **Operation flags required** → explicit `-c`, `-o`, `-m`, or `-d` required for creation/deletion operations
 - `--list [DIR]` → list symlinks (default `$HOME`), with `path -> target` output
 - `--broken [DIR]` → list **broken** symlinks (default `$HOME`)
@@ -121,6 +124,10 @@ If you don't pass SOURCE or DESTINATION, you'll be prompted to pick them interac
 -o → overwrite mode
 -m → merge mode (recursive)
 -d → delete mode (remove symlink)
+-r, --recursive → recursive mode (use with -c, -o, or -d)
+  -cr → create recursive (same as -m)
+  -or → overwrite recursive with prompts
+  -dr → delete symlinks in directory interactively
 --dry-run → preview, skip conflicts
 --dry-run-overwrite → preview, overwrite conflicts
 --fzf → force fzf usage (error if not installed)
@@ -152,11 +159,23 @@ symlinkit -o ~/dotfiles/config ~/.config
 # Merge ~/dotfiles/scripts into ~/bin/scripts
 symlinkit -m ~/dotfiles/scripts ~/bin
 
+# Create recursive (shorthand for merge)
+symlinkit -cr ~/dotfiles/config ~/.config
+
+# Overwrite recursive with interactive prompts
+symlinkit -or ~/dotfiles/scripts ~/bin
+
 # Delete a symlink
 symlinkit -d ~/.config/nvim
 
+# Delete all symlinks in a directory (interactive)
+symlinkit -dr ~/.config
+
 # Preview delete (dry-run)
 symlinkit --dry-run -d ~/.local/bin/old-link
+
+# Preview recursive delete (dry-run)
+symlinkit --dry-run -dr ~/test-links
 
 # Preview merge, skip conflicts
 symlinkit --dry-run -m ~/src/project ~/deploy
