@@ -1,6 +1,6 @@
 .\" Manpage for symlinkit
 .\" Save as symlinkit.1 in ~/.local/share/man/man1/
-.TH SYMLINKIT 1 "September 2025" "1.8.0" "User Commands"
+.TH SYMLINKIT 1 "September 2025" "1.8.1" "User Commands"
 .SH NAME
 symlinkit \- flexible symlink helper with intelligent fzf fallback, dry-run, and symlink overview tools
 .SH SYNOPSIS
@@ -102,7 +102,9 @@ Works with or without \fBjq\fR (uses fallback formatting if \fBjq\fR unavailable
 .B --fix-broken [DIR]
 Interactively fix broken symlinks under DIR (default: $HOME).
 For each broken link, you can delete, update the target (with an optional fzf picker),
-or skip. The \fB--depth\fR option applies to the interactive search picker.
+or skip. Use \fB[a]ll\fR to delete all remaining broken symlinks.
+Supports \fB--dry-run\fR to preview changes without making them.
+The \fB--depth\fR option applies to the interactive search picker.
 A summary of actions is shown at the end.
 .TP
 .B -h, --help
@@ -145,6 +147,11 @@ symlinkit --tree-verbose ~/.config
 Fix broken symlinks under $HOME:
 .nf
 symlinkit --fix-broken
+.fi
+
+Preview fixing broken symlinks (dry-run):
+.nf
+symlinkit --dry-run --fix-broken ~/projects
 .fi
 
 Create a new symlink:

@@ -72,6 +72,14 @@ Originally built to manage dotfiles, it works anywhere you need to symlink direc
 
 ## Installation
 
+### Quick Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/install.sh | bash
+```
+
+### Manual Installation
+
 Clone and install locally:
 
 ```bash
@@ -191,6 +199,9 @@ symlinkit --broken /etc
 
 # Interactively fix broken symlinks under $HOME
 symlinkit --fix-broken
+
+# Preview fixing broken symlinks (dry-run)
+symlinkit --dry-run --fix-broken ~/projects
 
 # Count symlinks in $HOME
 symlinkit --count-only ~

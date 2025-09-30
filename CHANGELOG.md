@@ -3,6 +3,30 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.8.1] - 2025-09-30
+
+### 🚀 Features
+
+- **Automated Install Script**: Added `install.sh` for one-command installation
+  - Installs to `~/bin` automatically
+  - Updates shell configuration (`.bashrc`/`.zshrc`)
+  - Installs man page to `~/.local/share/man/man1/`
+  - No prompts or choices - streamlined experience
+  - Usage: `curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/install.sh | bash`
+
+### 📚 Documentation
+
+- **README**: Added Quick Install section with curl command
+- **Wiki - Installation**: Added automated install script as recommended method
+- **Wiki - Inspection Tools**: Documented `[a]ll` option for `--fix-broken`
+- **Wiki - Usage Examples**: Added dry-run examples for `--fix-broken`
+- **Man Page**: Updated `--fix-broken` documentation to include `[a]ll` option and dry-run support
+
+### ✅ Verification
+
+- Confirmed `--fix-broken` already supports `--dry-run` and `[a]ll delete` option
+- All 31 tests passing (37 assertions)
+
 ## [1.8.0] - 2025-09-30
 
 ### 🚀 Major Features
