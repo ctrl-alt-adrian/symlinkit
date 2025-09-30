@@ -35,7 +35,7 @@
 #
 
 # --- configuration ---
-VERSION="1.8.1"
+VERSION="1.8.2"
 readonly DEFAULT_DEPTH=3
 
 # --- os detection ---
@@ -449,7 +449,7 @@ while [[ $# -gt 0 && "$1" == -* ]]; do
     --fix-broken) fix_broken=true ;;
     --fzf) force_fzf=true ;;
     --no-fzf) force_no_fzf=true ;;
-    -h|--help) grep '^# ' "$0" | sed 's/^# //' ; exit 0 ;;
+    -h|--help) sed -n '2,/^$/p' "$0" | grep '^#' | sed 's/^# \?//' ; exit 0 ;;
     -v|--version) echo "symlinkit $VERSION ($OS${IS_WSL:++WSL})"; exit 0 ;;
     *) die "❌ Unknown flag: $1" ;;
   esac; shift

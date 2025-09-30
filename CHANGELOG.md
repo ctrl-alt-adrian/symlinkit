@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.8.2] - 2025-09-30
+
+### 🐛 Fixes
+
+- **Help output cleanup**: Fixed `--help` output showing internal code comments
+  - Previously showed section headers like "--- configuration ---", "--- os detection ---", etc.
+  - Now cleanly stops after the flags section
+  - Help command now only displays the header comment block
+
 ## [1.8.1] - 2025-09-30
 
 ### 🚀 Features
