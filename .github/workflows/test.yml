@@ -36,19 +36,16 @@ jobs:
       - name: Run shellcheck on install.sh
         run: shellcheck install.sh
 
-      - name: Generate test files
-        run: ./generate-tests.sh
-
       - name: Make scripts executable
-        run: chmod +x symlinkit *.sh
+        run: chmod +x symlinkit tests/simple_test.sh
 
       - name: Run test suite
-        run: ./simple_test.sh
+        run: ./tests/simple_test.sh
 
       - name: Verify version matches
         run: |
           version=$(grep '^VERSION=' symlinkit | cut -d'"' -f2)
-          man_version=$(grep '^.TH SYMLINKIT' man/symlinkit.1 | awk '{print $4}' | tr -d '"')
+          man_version=$(grep '^\.TH SYMLINKIT' man/symlinkit.1 | cut -d'"' -f4)
           if [ "$version" != "$man_version" ]; then
             echo "Version mismatch: symlinkit=$version, man page=$man_version"
             exit 1

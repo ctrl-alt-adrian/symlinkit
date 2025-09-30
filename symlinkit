@@ -35,7 +35,7 @@
 #
 
 # --- configuration ---
-VERSION="1.8.2"
+VERSION="1.8.3"
 readonly DEFAULT_DEPTH=3
 
 # --- os detection ---

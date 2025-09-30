@@ -3,6 +3,36 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.8.3] - 2025-09-30
+
+### 🧪 Testing
+
+- **Test Organization**: Moved all test files to `tests/` directory
+  - `tests/simple_test.sh` - Complete test suite with 31 comprehensive tests
+  - `tests/test_json_fallback.sh` - JSON fallback tests
+  - Removed `generate-tests.sh` (tests now committed to repository)
+  - All test files now tracked in git for reliability
+
+- **CI/CD Improvements**: Updated GitHub Actions workflow
+  - Fixed test paths to use `tests/` directory
+  - All 31 tests run on both Ubuntu and macOS
+  - Ensures consistent quality across platforms
+
+### 📚 Documentation
+
+- **README**: Updated Testing section to reference `tests/` directory
+- **Wiki - Testing Framework**: Complete rewrite to reflect committed test files
+  - Removed references to test generator
+  - Added comprehensive guide for editing and adding tests
+  - Documented all 31 test cases with categories
+  - Added CI/CD integration documentation
+- **CLAUDE.md**: Updated all test paths to use `tests/` directory
+
+### ✅ Test Fixes
+
+- Fixed "Recursive delete (delete all)" test to use `[a]ll` option correctly
+- All 31 tests now pass consistently
+
 ## [1.8.2] - 2025-09-30
 
 ### 🐛 Fixes
