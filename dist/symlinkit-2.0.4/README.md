@@ -57,7 +57,7 @@ For detailed documentation, see the **[wiki](https://github.com/ctrl-alt-adrian/
 ### Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/scripts/install.sh | bash
 ```
 
 ### Manual Install
@@ -65,18 +65,18 @@ curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/inst
 ```bash
 git clone https://github.com/ctrl-alt-adrian/symlinkit.git
 cd symlinkit
-chmod +x symlinkit
-sudo cp symlinkit /usr/local/bin/
+chmod +x scripts/symlinkit
+sudo cp scripts/symlinkit /usr/local/bin/symlinkit
 ```
 
-**Note:** The `chmod +x symlinkit` step is required to make the script executable before copying it.
+**Note:** The `chmod +x scripts/symlinkit` step is required to make the script executable before copying it.
 
 ---
 
 ## Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/scripts/uninstall.sh | bash
 ```
 
 This removes `symlinkit`, the man page, and completion scripts.  
