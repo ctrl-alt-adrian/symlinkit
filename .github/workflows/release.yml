@@ -21,18 +21,17 @@ jobs:
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Create release tarball
+      - name: Install dependencies
         run: |
-          version="${{ steps.get_version.outputs.VERSION }}"
-          mkdir -p "symlinkit-$version"
-          cp symlinkit install.sh README.md LICENSE CHANGELOG.md "symlinkit-$version/"
-          cp -r man "symlinkit-$version/"
-          tar -czf "symlinkit-$version.tar.gz" "symlinkit-$version"
-          rm -rf "symlinkit-$version"
+          sudo apt-get update
+          sudo apt-get install -y shellcheck bats
 
-      - name: Generate checksums
+      - name: Run tests + lint + package
         run: |
-          sha256sum symlinkit-*.tar.gz > SHA256SUMS
+          make VERSION="${{ steps.get_version.outputs.VERSION }}"
+          make release VERSION="${{ steps.get_version.outputs.VERSION }}"
+          mv dist/symlinkit-${{ steps.get_version.outputs.VERSION }}.tar.gz .
+          mv dist/symlinkit-${{ steps.get_version.outputs.VERSION }}.tar.gz.sha256 SHA256SUMS
           cat SHA256SUMS
 
       - name: Create GitHub Release
