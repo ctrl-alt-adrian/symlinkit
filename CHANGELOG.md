@@ -3,6 +3,66 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [2.0.2] - 2025-10-02
+
+### 🚀 Major Changes
+
+- **Testing Framework Migration**: Replaced custom test runner with [bats](https://github.com/bats-core/bats-core) (Bash Automated Testing System)
+  - Removed `tests/simple_test.sh` (312 lines)
+  - Added `tests/symlinkit.bats` - Professional TAP-compliant test suite (27 tests)
+  - Added `tests/helpers.bash` - Setup/teardown and helper functions
+  - Cleaner, more maintainable test structure using `@test` syntax
+  - Easier to add new tests and debug failures
+
+- **Makefile Added**: Standardized build/test/release workflow
+  - `make test` - Run bats test suite
+  - `make lint` - Run shellcheck validation
+  - `make install` - Install symlinkit and man page
+  - `make uninstall` - Remove installed files
+  - `make release` - Create release tarball with checksums
+  - `make clean` - Remove build artifacts
+  - Default target runs both test and lint
+
+### 🔧 CI/CD Improvements
+
+- **Updated GitHub Actions Workflow**:
+  - Replaced `simple_test.sh` with `make test`
+  - Added shellcheck validation for `uninstall.sh`
+  - Added shellcheck validation for `tests/helpers.bash`
+  - Simplified dependency installation (removed fzf, jq, tree - not needed)
+  - Both Ubuntu and macOS runners install `bats` for testing
+
+### 📚 Documentation
+
+- **Man Page**: Removed TESTING section - man page now focuses strictly on features
+- **README.md**: Updated Testing and Contributing sections to use `make test`
+- **CLAUDE.md**: Updated all testing commands to use `make test` and bats
+- **Wiki - Installation.md**:
+  - Added `uninstall.sh` documentation with Quick Uninstall section
+  - Documented manual uninstall steps for all components
+  - Added notes about shell config cleanup
+- **Wiki - Testing-Framework.md**: Completely rewritten for bats
+  - Added bats installation instructions (apt, brew, manual)
+  - Comprehensive bats documentation with examples
+  - Test architecture and structure guide
+  - Writing tests with bats (6 detailed examples)
+  - Bats assertions reference
+  - Troubleshooting guide
+- **Wiki - Contributing.md**: Updated all test commands to use `make test`
+
+### 🎯 Developer Experience
+
+All testing workflows now use standardized Makefile:
+```bash
+make test        # Run all 27 bats tests
+make lint        # Run shellcheck
+make             # Run both test + lint
+```
+
+Tests are now easier to write, read, and maintain using bats' `@test` syntax.
+
+---
+
 ## [2.0.1] - 2025-10-02
 
 ### 🐛 Fixes

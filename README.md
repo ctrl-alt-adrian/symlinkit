@@ -135,13 +135,20 @@ For more examples, see the **[Usage Examples](https://github.com/ctrl-alt-adrian
 
 ## Testing
 
-Run the test suite to verify functionality:
+symlinkit uses [bats](https://github.com/bats-core/bats-core) (Bash Automated Testing System) for testing.
 
 ```bash
-./tests/simple_test.sh
+# Run all tests
+make test
+
+# Or run bats directly
+bats tests/symlinkit.bats
+
+# Run a specific test
+bats tests/symlinkit.bats --filter "Version flag"
 ```
 
-For detailed testing documentation, see the **[Testing Framework](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Testing-Framework)** wiki page.
+For detailed testing documentation and examples, see the **[Testing Framework](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Testing-Framework)** wiki page.
 
 ---
 
@@ -155,7 +162,7 @@ git clone https://github.com/YOUR-USERNAME/symlinkit.git
 cd symlinkit
 
 # Test your changes
-./tests/simple_test.sh
+make test
 ```
 
 CI/CD runs tests on every pull request and all tests must pass before merging.
