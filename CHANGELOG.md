@@ -3,6 +3,28 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [2.0.4] - 2025-10-02
+
+### 🐛 Bug Fixes
+
+- **CI/CD Workflows**: Fixed test.yml workflow paths after scripts/ reorganization
+  - Corrected shellcheck paths for `scripts/install.sh` and `scripts/uninstall.sh`
+  - Fixed chmod path for `scripts/symlinkit`
+  - Updated version verification to read from `scripts/symlinkit`
+
+### 📚 Documentation
+
+- **README.md**: Updated all install/uninstall paths to reference `scripts/` directory
+  - Quick install URL now points to `scripts/install.sh`
+  - Uninstall URL now points to `scripts/uninstall.sh`
+  - Manual install instructions updated with correct paths
+
+- **Wiki Updates**: Synchronized documentation with scripts/ reorganization
+  - Contributing.md: Updated all shellcheck examples and workflow instructions
+  - Testing-Framework.md: Fixed bats installation example path
+
+- **CLAUDE.md**: Added version management section with release checklist and version locations
+
 ## [2.0.3] - 2025-10-02
 
 ### 🏗️ Repository Structure
