@@ -35,23 +35,23 @@ jobs:
           brew list findutils &>/dev/null || brew install findutils
 
       - name: Run shellcheck on install.sh
-        run: shellcheck install.sh
+        run: shellcheck scripts/install.sh
 
       - name: Run shellcheck on uninstall.sh
-        run: shellcheck uninstall.sh
+        run: shellcheck scripts/uninstall.sh
 
       - name: Run shellcheck on test helpers
         run: shellcheck tests/helpers.bash
 
       - name: Make scripts executable
-        run: chmod +x symlinkit
+        run: chmod +x scripts/symlinkit
 
       - name: Run tests
         run: make test
 
       - name: Verify version matches
         run: |
-          version=$(grep '^VERSION=' symlinkit | cut -d'"' -f2)
+          version=$(grep '^VERSION=' scripts/symlinkit | cut -d'"' -f2)
           man_version=$(grep '^\.TH SYMLINKIT' man/symlinkit.1 | cut -d'"' -f4)
           if [ "$version" != "$man_version" ]; then
             echo "Version mismatch: symlinkit=$version, man page=$man_version"

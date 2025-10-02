@@ -27,8 +27,11 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
 
 ### 🔄 CI/CD
 
+- **Test Workflow**: Fixed all script paths in `.github/workflows/test.yml`
+  - Updated shellcheck paths for `scripts/install.sh` and `scripts/uninstall.sh`
+  - Updated chmod path for `scripts/symlinkit`
+  - Fixed version verification to read from `scripts/symlinkit`
 - **Release Workflow**: Updated `.github/workflows/release.yml` to reference `scripts/` directory
-- **Test Workflow**: Paths updated to work with new structure
 
 ## [2.0.2] - 2025-10-02
 
