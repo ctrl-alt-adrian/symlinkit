@@ -3,6 +3,33 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [2.0.3] - 2025-10-02
+
+### 🏗️ Repository Structure
+
+- **Scripts Organization**: Moved all executable scripts to dedicated `scripts/` directory
+  - `symlinkit` → `scripts/symlinkit`
+  - `install.sh` → `scripts/install.sh`
+  - `uninstall.sh` → `scripts/uninstall.sh`
+  - `bump` → `scripts/bump` (later removed)
+
+### 🔧 Build System
+
+- **Makefile Improvements**: Updated all paths to reflect new `scripts/` directory structure
+- **Integrated bump target**: Removed standalone `scripts/bump` script, integrated version bumping directly into Makefile
+  - `make bump X.Y.Z` now handles version updates, git commits, and tagging
+  - Cross-platform support (GNU sed and BSD sed)
+
+### 🧪 Testing
+
+- **Test Path Updates**: Updated `tests/helpers.bash` and `tests/symlinkit.bats` to reference new script locations
+- **Simplified Test Structure**: Cleaned up test files (reduced from 30 to manageable set)
+
+### 🔄 CI/CD
+
+- **Release Workflow**: Updated `.github/workflows/release.yml` to reference `scripts/` directory
+- **Test Workflow**: Paths updated to work with new structure
+
 ## [2.0.2] - 2025-10-02
 
 ### 🚀 Major Changes
