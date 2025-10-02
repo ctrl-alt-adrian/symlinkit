@@ -1,0 +1,41 @@
+#compdef symlinkit
+
+_symlinkit() {
+  local -a modes inspection_modes flags
+
+  modes=(
+    '-c[Create symlink]'
+    '--create[Create symlink]'
+    '-o[Overwrite existing target]'
+    '--overwrite[Overwrite existing target]'
+    '-m[Merge directory contents recursively]'
+    '--merge[Merge directory contents recursively]'
+    '-d[Delete symlink]'
+    '--delete[Delete symlink]'
+    '-r[Recursive mode]'
+    '--recursive[Recursive mode]'
+    '-cr[Create recursive (same as -m)]'
+    '-or[Overwrite recursive with prompts]'
+    '-dr[Delete symlinks recursively]'
+  )
+
+  inspection_modes=(
+    '--list[List all symlinks in directory]'
+    '--broken[Show broken symlinks only]'
+    '--fix-broken[Interactively fix broken symlinks]'
+  )
+
+  flags=(
+    '--dry-run[Preview actions without making changes]'
+  )
+
+  _arguments \
+    '(- *)'{-h,--help}'[Show help message]' \
+    '(- *)'{-v,--version}'[Show version]' \
+    $modes \
+    $inspection_modes \
+    $flags \
+    '*:file or directory:_files'
+}
+
+_symlinkit "$@"

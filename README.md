@@ -6,12 +6,13 @@
 ![macOS](https://img.shields.io/badge/OS-macOS-lightgrey?logo=apple)
 ![WSL](https://img.shields.io/badge/OS-WSL-blue?logo=windows)
 
-> **📚 [Visit the Wiki](https://github.com/ctrl-alt-adrian/symlinkit/wiki)** for comprehensive guides, tutorials, and API documentation.
+> **📚 [Visit the Wiki](https://github.com/ctrl-alt-adrian/symlinkit/wiki)** for comprehensive guides and tutorials.
 
-A small command-line tool that makes working with symlinks less of a hassle.
-It supports **intelligent interactive selection** (auto-detects [fzf](https://github.com/junegunn/fzf) with manual fallback), recursive linking, overwrite/merge modes, safe dry-runs, and advanced inspection tools to manage existing symlinks on your system.
+**A focused CRUD tool for managing symlinks.** Fast, secure, simple, and **zero dependencies**.
 
-Originally built to manage dotfiles, it works anywhere you need to symlink directories. **Works with or without fzf** - gracefully falls back to manual prompts when fzf isn't available.
+Create, read, update, and delete symlinks with confidence. Built for managing dotfiles and configuration, symlinkit handles the tedious parts of symlink management while keeping things straightforward.
+
+**Interactive prompts** for paths when arguments aren't provided - no external tools required.
 
 ## Table of Contents
 
@@ -31,14 +32,14 @@ Originally built to manage dotfiles, it works anywhere you need to symlink direc
 
 ## Features
 
-- **Smart Interactive Selection** - Auto-detects fzf, falls back to manual prompts
-- **Symlink Operations** - Create (`-c`), merge (`-m`), overwrite (`-o`), delete (`-d`)
-- **Safe Workflows** - Dry-run mode, interactive prompts, explicit operation flags required
-- **Inspection Tools** - List, find broken links, fix broken links, tree views
-- **Multiple Output Modes** - Human-readable with colors, JSON, verbose modes
+- **Core CRUD Operations** - Create (`-c`), overwrite (`-o`), merge (`-m`), delete (`-d`)
+- **Safe by Default** - Dry-run mode, interactive prompts, security hardening
+- **Zero Dependencies** - No external tools required (no fzf, no jq, no tree)
+- **Interactive Prompts** - Manual path entry when arguments aren't provided
+- **Link Management** - List symlinks (`--list`), find broken links (`--broken`), fix broken links (`--fix-broken`)
 - **Cross-platform** - Linux, macOS, WSL
 
-For complete feature documentation, see the **[wiki](https://github.com/ctrl-alt-adrian/symlinkit/wiki)**.
+For detailed documentation, see the **[wiki](https://github.com/ctrl-alt-adrian/symlinkit/wiki)**.
 
 ---
 
@@ -63,8 +64,11 @@ curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/inst
 ```bash
 git clone https://github.com/ctrl-alt-adrian/symlinkit.git
 cd symlinkit
+chmod +x symlinkit
 sudo cp symlinkit /usr/local/bin/
 ```
+
+**Note:** The `chmod +x symlinkit` step is required to make the script executable before copying it.
 
 For detailed installation options, see the **[Installation Guide](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Installation)** on the wiki.
 
@@ -73,29 +77,20 @@ For detailed installation options, see the **[Installation Guide](https://github
 ## Flags
 
 ```
--c → create mode (safe creation, fails if destination exists)
--o → overwrite mode (removes existing file/directory at destination, replaces with symlink)
--m → merge mode (recursively creates symlinks for source directory contents)
--d → delete mode (removes symlink only, does not affect target)
--r, --recursive → recursive mode (use with -c, -o, or -d)
-  -cr → create recursive (same as -m)
-  -or → overwrite recursive with prompts
-  -dr → delete symlinks in directory interactively
---dry-run → preview, skip conflicts
---dry-run-overwrite → preview, overwrite conflicts
---fzf → force fzf usage (error if not installed)
---no-fzf → disable fzf, use manual prompts only
---tree [DIR] → minimal tree view (symlink arrows only; standalone or after linking)
---tree-verbose [DIR] → verbose tree view (permissions + symlink arrows; standalone or after linking)
---list [DIR] → list symlinks (default: $HOME if DIR not provided)
---broken [DIR] → list broken symlinks (default: $HOME if DIR not provided)
---fix-broken [DIR] → interactively fix broken symlinks (delete, update, skip; default $HOME)
---depth N → tree/fix-broken depth (default 3)
---count-only [DIR] → count symlinks only
---sort path|target → sort results
---json → JSON output mode (defaults to list if no other mode specified)
--h, --help → colorized help text
--v, --version → version info
+-c, --create           Create mode (safe creation, fails if destination exists)
+-o, --overwrite        Overwrite mode (removes existing file/directory, replaces with symlink)
+-m, --merge            Merge mode (recursively creates symlinks for source directory contents)
+-d, --delete           Delete mode (removes symlink only, does not affect target)
+-r, --recursive        Recursive mode (use with -c, -o, or -d)
+  -cr                  Create recursive (same as -m)
+  -or                  Overwrite recursive with prompts
+  -dr                  Delete symlinks in directory interactively
+--dry-run              Preview actions without making changes
+--list [DIR]           List symlinks in directory (prompts for DIR if not provided)
+--broken [DIR]         List broken symlinks (prompts for DIR if not provided)
+--fix-broken [DIR]     Interactively fix broken symlinks (delete, update, or skip)
+-h, --help             Show help message
+-v, --version          Show version info
 ```
 
 ---
@@ -112,14 +107,17 @@ symlinkit -m ~/dotfiles/scripts ~/bin
 # Delete a symlink (only removes the link, not what it points to)
 symlinkit -d ~/.config/nvim
 
-# Preview changes before applying (dry-run shows what would happen)
+# Preview changes before applying
 symlinkit --dry-run -m ~/src/project ~/deploy
 
-# Disable fzf interactive selection
-symlinkit --no-fzf -c ~/dotfiles/.bashrc ~
+# List all symlinks in a directory
+symlinkit --list ~/
+
+# Find and fix broken symlinks
+symlinkit --fix-broken ~/
 ```
 
-For more examples and advanced usage, see the **[Usage Examples](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Usage-Examples)** wiki page.
+For more examples, see the **[Usage Examples](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Usage-Examples)** wiki page.
 
 ---
 
@@ -162,23 +160,20 @@ Found a bug or have a feature request?
 - ✨ [Request Feature](https://github.com/ctrl-alt-adrian/symlinkit/issues/new?labels=enhancement)
 - 📚 [Ask Question](https://github.com/ctrl-alt-adrian/symlinkit/discussions)
 
-When reporting, include your OS, symlinkit version (`./symlinkit --version`), and steps to reproduce.
+When reporting, include your OS, symlinkit version (`./symlinkit -v`), and steps to reproduce.
 
 ---
 
 ## Requirements
 
-**Required:** None - symlinkit works out of the box
-
-**Optional:**
-- `fzf` - Enhanced interactive selection
-- `tree` - Tree view modes
-- `jq` - JSON output formatting
+**Required:** None - symlinkit has **zero dependencies** and works out of the box
 
 **macOS:** Install GNU utilities via Homebrew:
 ```bash
 brew install coreutils findutils
 ```
+
+That's it. No fzf, no jq, no tree, no external tools. Just bash.
 
 ---
 

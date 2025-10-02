@@ -1,42 +1,10 @@
 #!/usr/bin/env bash
-# symlinkit - A flexible symlink helper with fzf + dry-run support
-#
-# Usage:
-#   symlinkit [FLAGS] [SOURCE] [DESTINATION]
-#
-# Flags:
-#   -c                     Create mode (create a new symlink, fails if destination exists)
-#   -o                     Overwrite mode (remove existing file/directory at destination, replace with symlink)
-#   -m                     Merge mode (recursively create symlinks for source directory contents into destination)
-#   -d                     Delete mode (remove a symlink, does not affect the target it points to)
-#   -r, --recursive        Recursive mode (use with -c, -o, or -d)
-#                          -cr: create symlinks recursively (same as -m)
-#                          -or: overwrite recursively with prompts
-#                          -dr: delete symlinks in directory interactively
-#   --dry-run              Preview actions (conflicts default to "skip")
-#   --dry-run-overwrite    Preview actions (conflicts default to "overwrite")
-#   --tree                 Minimal tree view (standalone or after linking)
-#   --tree-verbose         Verbose tree view with permissions (standalone or after linking)
-#
-#   --list [DIR]           List symlinks (interactive if no dir given)
-#   --list-verbose [DIR]   List symlinks with permissions (interactive if no dir given)
-#   --broken [DIR]         List only broken symlinks (interactive if no dir given)
-#   --fix-broken [DIR]     Interactively fix broken symlinks (interactive if no dir given)
-#   --count-only [DIR]     Show only the count of symlinks (interactive if no dir given)
-#   --depth N              Limit tree/fix-broken depth (default: 3)
-#   --sort [path|target]   Sort results by path or target
-#   --json                 Output results in JSON format
-#
-#   --fzf                  Force fzf usage (error if not installed)
-#   --no-fzf               Disable fzf, use manual prompts only
-#
-#   -h, --help             Show help message
-#   -v, --version          Show version info
-#
+set -euo pipefail
+# symlinkit - A focused CRUD tool for managing symlinks
+# Run with -h or --help for usage information
 
 # --- configuration ---
-VERSION="1.8.3"
-readonly DEFAULT_DEPTH=3
+VERSION="2.0.0"
 
 # --- os detection ---
 case "$(uname -s)" in
@@ -59,31 +27,136 @@ YELLOW="\033[0;33m"
 GREEN="\033[0;32m"
 RESET="\033[0m"
 
+# --- security functions ---
+# Sanitize path for display by removing control characters
+sanitize_display() {
+  local input="$1"
+  # Remove control characters (ASCII 0-31 and 127) except newline/tab
+  printf '%s' "$input" | LC_ALL=C sed 's/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/?/g'
+}
+
+# Validate path is safe for rm operations
+validate_path_safety() {
+  local path="$1"
+
+  # Check for empty path
+  if [[ -z "$path" ]]; then
+    die "🛑 SECURITY: Attempted operation on empty path"
+  fi
+
+  # Check for root or near-root paths
+  if [[ "$path" == "/" || "$path" == "/." || "$path" == "/.." ]]; then
+    die "🛑 SECURITY: Attempted operation on root directory"
+  fi
+
+  # Check for home directory root
+  if [[ "$path" == "$HOME" || "$path" == "$HOME/" ]]; then
+    die "🛑 SECURITY: Attempted operation on home directory root"
+  fi
+
+  # Resolve path and check again after resolution
+  local resolved
+  resolved=$(realpath_wrap "$path" 2>/dev/null || echo "$path")
+  if [[ "$resolved" == "/" || "$resolved" == "$HOME" ]]; then
+    die "🛑 SECURITY: Path resolves to protected directory"
+  fi
+}
+
+# Remove path (symlink, directory, or file) with safety validation
+remove_path() {
+  local p="$1"
+  validate_path_safety "$p"
+  if [[ -L "$p" ]]; then
+    unlink -- "$p"
+  elif [[ -d "$p" ]]; then
+    rm -rf -- "$p"
+  else
+    rm -f -- "$p"
+  fi
+}
+
 # --- global state ---
 dry_run=false
-dry_run_overwrite=false
 mode=""
-show_tree=false
-show_tree_verbose=false
 list_mode=false
-list_verbose_mode=false
 broken_mode=false
-count_only=false
-json=false
-sort_by=""
-depth=$DEFAULT_DEPTH
 fix_broken=false
-force_fzf=false
-force_no_fzf=false
 recursive=false
 
 linked=0
 overwritten=0
 skipped=0
 
+# Global flag for permission errors during find operations
+FIND_PERMISSION_ERRORS=false
+
 # --- core utilities ---
 die() { echo -e "$@" >&2; exit 1; }
-has_fzf() { command -v fzf >/dev/null 2>&1; }
+
+# Logging wrappers for consistent output
+log_ok()    { echo -e "${GREEN}✅ $*${RESET}"; }
+log_error() { echo -e "${RED}❌ $*${RESET}" >&2; }
+log_warn()  { echo -e "${YELLOW}⚠️  $*${RESET}" >&2; }
+log_info()  { echo -e "📊 $*"; }
+log_skip()  { echo -e "${YELLOW}⏭️ Skipped: $*${RESET}"; }
+log_overwrite() { echo -e "${RED}🔄 $*${RESET}"; }
+
+# Create symlink (source, destination)
+link_item() { ln -s -- "$1" "$2" 2>/dev/null; }
+
+# Remove and recreate symlink (source, destination)
+overwrite_item() { remove_path "$2" 2>/dev/null && link_item "$1" "$2"; }
+
+# Display help message
+usage() {
+  cat <<'EOF'
+symlinkit - A focused CRUD tool for managing symlinks
+
+Usage:
+  symlinkit [FLAGS] [SOURCE] [DESTINATION]
+
+Flags:
+  -c, --create           Create mode (create a new symlink, fails if destination exists)
+  -o, --overwrite        Overwrite mode (remove existing file/directory at destination, replace with symlink)
+  -m, --merge            Merge mode (recursively create symlinks for source directory contents into destination)
+  -d, --delete           Delete mode (remove a symlink, does not affect the target it points to)
+  -r, --recursive        Recursive mode (use with -c, -o, or -d)
+                         -cr: create symlinks recursively (same as -m)
+                         -or: overwrite recursively with prompts
+                         -dr: delete symlinks in directory interactively
+
+  --dry-run              Preview actions without making changes
+
+  --list [DIR]           List symlinks (prompts for DIR if not provided)
+  --broken [DIR]         List only broken symlinks (prompts for DIR if not provided)
+  --fix-broken [DIR]     Interactively fix broken symlinks (prompts for DIR if not provided)
+
+  -h, --help             Show this help message
+  -v, --version          Show version info
+
+EOF
+}
+
+# Get single character choice from user
+get_choice() {
+  local prompt="$1" ch
+  printf "%s" "$prompt" >&2
+
+  # Try Bash/Zsh/Ksh style first
+  if read -r -n1 ch 2>/dev/null; then
+    :
+  else
+    # POSIX fallback using stty + head
+    if ! stty -echo -icanon time 0 min 1 2>/dev/null; then
+      echo >&2; die "❌ Failed to read input"
+    fi
+    ch=$(head -c1)
+    stty sane 2>/dev/null
+  fi
+
+  echo >&2
+  printf '%s\n' "$ch"
+}
 
 trap "echo; die '❌ Cancelled by user'" SIGINT
 
@@ -131,35 +204,36 @@ check_permission_errors() {
   local permission_errors
   permission_errors=$(echo "$output" | grep "Permission denied" || true)
   if [[ -n "$permission_errors" ]]; then
-    echo "⚠️ Warning: Some directories could not be scanned due to permissions. Results may be incomplete." >&2
+    log_warn "Some directories could not be scanned due to permissions. Results may be incomplete."
     return 0  # Has permission errors
   fi
   return 1  # No permission errors
 }
 
 # Unified safe find wrapper that handles permission errors consistently
+# Sets global FIND_PERMISSION_ERRORS flag and always returns 0
 safe_find() {
   local find_output
-  find_output=$(find_wrap "$@" 2>&1)
+  find_output=$({ find_wrap "$@"; } 2>&1)
 
-  # Check for permission errors and warn if found
-  local has_permission_errors=false
-  if check_permission_errors "$find_output"; then has_permission_errors=true; fi
+  # Check for permission errors and set global flag
+  if check_permission_errors "$find_output"; then
+    FIND_PERMISSION_ERRORS=true
+  else
+    FIND_PERMISSION_ERRORS=false
+  fi
 
   # Filter out permission denied errors and return clean results
-  echo "$find_output" | grep -v "Permission denied"
+  echo "$find_output" | grep -v "Permission denied" || true
 
-  # Return status indicates if there were permission errors
-  if $has_permission_errors; then return 0; else return 1; fi
+  # Always return success (permission errors signaled via global flag)
+  return 0
 }
 
 # --- input validation ---
-validate_directory() { [[ -d "$1" ]]; }
-validate_file() { [[ -f "$1" ]]; }
-
 get_validated_input() {
   local prompt="$1"
-  local validation_func="$2"
+  local type="$2"
   local error_message="$3"
 
   while true; do
@@ -172,7 +246,12 @@ get_validated_input() {
 
     user_input=$(resolve_input_path "$user_input")
 
-    if "$validation_func" "$user_input"; then
+    # Inline validation based on type
+    local valid=false
+    [[ "$type" == "directory" && -d "$user_input" ]] && valid=true
+    [[ "$type" == "file" && -f "$user_input" ]] && valid=true
+
+    if $valid; then
       echo "$user_input"; return 0
     else
       echo "❌ $error_message '$user_input'. Please try again." >&2
@@ -180,71 +259,33 @@ get_validated_input() {
   done
 }
 
-# --- fzf integration ---
-use_fzf() {
-  if $force_no_fzf; then return 1; fi
-  if $force_fzf; then return 0; fi
-  has_fzf
-}
-
-# Manual directory selection fallback
-manual_select_directory() {
-  local search_path="$1"
-  local mindepth="${2:-0}"
-  local maxdepth="${3:-5}"
-  local prompt="${4:-Specify a directory}"
-
-  get_validated_input "$prompt" "validate_directory" "Directory does not exist:"
-}
-
-# Manual file selection fallback
-manual_select_file() {
-  local search_path="$1"
-  local prompt="${2:-Specify a file}"
-
-  get_validated_input "$prompt" "validate_file" "File does not exist:"
-}
-
-# Hybrid directory selection (fzf or manual)
+# --- interactive selection ---
 select_directory() {
-  local search_path="$1"
-  local mindepth="${2:-0}"
-  local maxdepth="${3:-5}"
-  local prompt="${4:-Select a directory}"
-
-  if use_fzf; then
-    find_wrap "$search_path" -mindepth "$mindepth" -maxdepth "$maxdepth" -type d 2>/dev/null \
-      | fzf --prompt="$prompt > " --preview 'ls -la --color=always {}' --preview-window=down:15
-  else
-    # Convert "Select" to "Specify" for manual input
-    local manual_prompt="${prompt/Select/Specify}"
-    manual_select_directory "$search_path" "$mindepth" "$maxdepth" "$manual_prompt"
-  fi
+  local prompt="${1:-Enter directory path}"
+  get_validated_input "$prompt" "directory" "Directory does not exist:"
 }
 
-# Hybrid file selection (fzf or manual)
 select_file() {
-  local search_path="$1"
-  local prompt="${2:-Select a file}"
+  local prompt="${1:-Enter file path}"
+  get_validated_input "$prompt" "file" "File does not exist:"
+}
 
-  if use_fzf; then
-    find_wrap "$search_path" -type f 2>/dev/null | fzf --prompt="$prompt > "
+# Get directory from argument or prompt user
+get_directory_arg() {
+  local arg="$1"
+  local prompt="$2"
+
+  if [[ -n "$arg" && -d "$arg" ]]; then
+    echo "$arg"
   else
-    # Convert "Select" to "Specify" for manual input
-    local manual_prompt="${prompt/Select/Specify}"
-    manual_select_file "$search_path" "$manual_prompt"
+    local dir
+    dir=$(select_directory "$prompt")
+    [[ -z "$dir" ]] && die "❌ No directory selected."
+    echo "$dir"
   fi
 }
 
 # --- output formatting ---
-sort_results() {
-  case "$sort_by" in
-    path) sort ;;
-    target) awk -F' -> ' '{print $2, $0}' | sort | cut -d' ' -f2- ;;
-    *) cat ;;
-  esac
-}
-
 print_symlink() {
   local path="$1" target="$2"
   # Only resolve target if it's not already an absolute path
@@ -254,92 +295,38 @@ print_symlink() {
     symlink_dir="$(dirname "$path")"
     target=$(cd "$symlink_dir" && realpath_wrap "$target" 2>/dev/null || echo "$target")
   fi
-  echo -e "${PATH_COLOR}${path}${RESET} -> ${TARGET_COLOR}${target}${RESET}"
-}
-
-print_symlink_verbose() { ls -l "$1"; }
-
-print_symlink_json() {
-  local path="$1" target="$2"
-  # Only resolve target if it's not already an absolute path
-  # For relative symlink targets, resolve them relative to the symlink's directory
-  if [[ -n "$target" && "$target" != /* ]]; then
-    local symlink_dir
-    symlink_dir="$(dirname "$path")"
-    target=$(cd "$symlink_dir" && realpath_wrap "$target" 2>/dev/null || echo "$target")
-  fi
-  printf '{"path":"%s","target":"%s"}\n' "$path" "$target"
-}
-
-
-# Count display formatter
-display_count() {
-  local count="$1"
-  local item_type="$2"
-  local directory="$3"
-
-  local plural_s=""
-  [[ "$count" -ne 1 ]] && plural_s="s"
-
-  echo -e "📊 Found ${GREEN}${count}${RESET} ${item_type}${plural_s} in ${TARGET_COLOR}${directory}${RESET}"
-}
-
-# Tree display function
-display_tree() {
-  local dir="$1"
-  local verbose="${2:-false}"
-  local depth="${3:-$DEFAULT_DEPTH}"
-
-  if command -v tree >/dev/null 2>&1; then
-    local tree_args=(-L "$depth" -F)
-    $verbose && tree_args+=(-p)
-    local verbose_text=""
-    $verbose && verbose_text=" (verbose"
-    echo "📂 Tree view of $dir${verbose_text}, depth=$depth):"
-    tree "${tree_args[@]}" "$dir"
-  else
-    echo "⚠️ tree not found, falling back to flat symlink list."
-    fallback_tree_display "$dir" "$depth"
-  fi
-}
-
-# Fallback tree display using find
-fallback_tree_display() {
-  local dir="$1"
-  local depth="$2"
-
-  local tree_output
-  tree_output=$(safe_find "$dir" -maxdepth "$depth" -type l)
-  echo "$tree_output" | while read -r l; do
-    print_symlink "$l" "$(readlink "$l")"
-  done | sort_results
+  # Sanitize paths for safe terminal display
+  local safe_path safe_target
+  safe_path=$(sanitize_display "$path")
+  safe_target=$(sanitize_display "$target")
+  echo -e "${PATH_COLOR}${safe_path}${RESET} -> ${TARGET_COLOR}${safe_target}${RESET}"
 }
 
 # --- mode handlers ---
 
-# Find operations for different modes
-find_all_symlinks() {
-  safe_find "$1" -type l
-}
-
+# Find broken symlinks (uses global FIND_PERMISSION_ERRORS flag)
 find_broken_symlinks() {
   local dir="$1"
   local broken_output
   broken_output=$(safe_find "$dir" -type l)
-  local has_permission_errors=$?
+  # Permission error status now in global FIND_PERMISSION_ERRORS
 
   local broken_symlinks
-  broken_symlinks=$(echo "$broken_output" | while read -r l; do [[ ! -e "$l" ]] && echo "$l"; done)
+  broken_symlinks=$(echo "$broken_output" | while read -r l; do
+    if [[ ! -e "$l" ]]; then
+      echo "$l"
+    fi
+  done)
 
   echo "$broken_symlinks"
-  return $has_permission_errors
 }
 
-# Output handlers for different modes
-handle_list_output() {
+# Output handler for list and broken modes
+handle_symlink_output() {
   local symlinks="$1"
   local dir="$2"
   local has_permission_errors="$3"
+  local type="${4:-symlink}"  # "symlink" or "broken symlink"
 
   local count
   if [[ -z "$symlinks" || "$symlinks" =~ ^[[:space:]]*$ ]]; then
@@ -348,87 +335,28 @@ handle_list_output() {
     count=$(echo "$symlinks" | wc -l)
   fi
 
-  [[ "$count" -eq 0 ]] && {
+  if [[ "$count" -eq 0 ]]; then
     if [[ "$has_permission_errors" -eq 0 ]]; then
-      echo "⚠️ Could not scan all directories due to permissions. No symlinks found in accessible areas."
+      log_warn "Could not scan all directories due to permissions. No ${type}s found in accessible areas."
     else
-      echo "❌ No symlinks found in this directory"
-    fi
-    exit 0
-  }
-
-  if $json; then
-    if command -v jq >/dev/null 2>&1 && echo '[]' | jq . >/dev/null 2>&1; then
-      echo "$symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | jq -s .
-    else
-      echo "["
-      echo "$symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | sed '$!s/$/,/'
-      echo "]"
-    fi
-  else
-    display_count "$count" "symlink" "$dir"
-    if [[ "$list_verbose_mode" == true ]]; then
-      echo "$symlinks" | while read -r l; do print_symlink_verbose "$l"; done | sort_results
-    else
-      echo "$symlinks" | while read -r l; do print_symlink "$l" "$(readlink "$l")"; done | sort_results
-    fi
-  fi
-  exit 0
-}
-
-handle_broken_output() {
-  local broken_symlinks="$1"
-  local dir="$2"
-  local has_permission_errors="$3"
-
-  local broken_count
-  if [[ -z "$broken_symlinks" || "$broken_symlinks" =~ ^[[:space:]]*$ ]]; then
-    broken_count=0
-  else
-    broken_count=$(echo "$broken_symlinks" | wc -l)
-  fi
-
-  if [[ "$broken_count" -eq 0 ]]; then
-    if [[ "$has_permission_errors" -eq 0 ]]; then
-      echo "⚠️ Could not scan all directories due to permissions. No broken symlinks found in accessible areas."
-    else
-      echo "✅ You're good, no broken symlinks found in $dir"
+      if [[ "$type" == "broken symlink" ]]; then
+        log_ok "You're good, no broken symlinks found in $dir"
+      else
+        log_error "No symlinks found in this directory"
+      fi
     fi
     exit 0
   fi
 
-  if $json; then
-    if command -v jq >/dev/null 2>&1 && echo '[]' | jq . >/dev/null 2>&1; then
-      echo "$broken_symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | jq -s .
-    else
-      echo "["
-      echo "$broken_symlinks" | while read -r l; do print_symlink_json "$l" "$(readlink "$l")"; done | sort_results | sed '$!s/$/,/'
-      echo "]"
-    fi
-  else
-    display_count "$broken_count" "broken symlink" "$dir"
-    echo "$broken_symlinks" | while read -r l; do print_symlink "$l" "$(readlink "$l")"; done | sort_results
-  fi
-  exit 0
-}
+  local plural_s=""
+  [[ "$count" -ne 1 ]] && plural_s="s"
+  log_info "Found ${GREEN}${count}${RESET} ${type}${plural_s} in ${TARGET_COLOR}${dir}${RESET}"
 
-handle_count_output() {
-  local symlinks="$1"
-  local dir="$2"
-  local has_permission_errors="$3"
-
-  local count
-  if [[ -z "$symlinks" || "$symlinks" =~ ^[[:space:]]*$ ]]; then
-    count=0
-  else
-    count=$(echo "$symlinks" | wc -l)
-  fi
-
-  if $json; then
-    printf '{"directory":"%s","count":%d}\n' "$dir" "$count"
-  else
-    echo -e "🔢 ${GREEN}${count}${RESET} symlink$([[ "$count" -ne 1 ]] && echo "s") in ${TARGET_COLOR}${dir}${RESET}"
-  fi
+  echo "$symlinks" | while read -r l; do
+    local target
+    target=$(readlink "$l" 2>/dev/null || echo "(broken)")
+    print_symlink "$l" "$target"
+  done
   exit 0
 }
 
@@ -436,126 +364,70 @@ handle_count_output() {
 while [[ $# -gt 0 && "$1" == -* ]]; do
   case "$1" in
     --dry-run) dry_run=true ;;
-    --dry-run-overwrite) dry_run=true; dry_run_overwrite=true ;;
-    --tree) show_tree=true ;;
-    --tree-verbose) show_tree_verbose=true ;;
-    -c) mode="create" ;;
-    -o) mode="overwrite" ;;
-    -m) mode="merge" ;;
-    -d) mode="delete" ;;
+    -c|--create) mode="create" ;;
+    -o|--overwrite) mode="overwrite" ;;
+    -m|--merge) mode="merge" ;;
+    -d|--delete) mode="delete" ;;
     -r|--recursive) recursive=true ;;
     -cr|-rc) mode="create"; recursive=true ;;
     -or|-ro) mode="overwrite"; recursive=true ;;
     -dr|-rd) mode="delete"; recursive=true ;;
+    -cd|-dc|-md|-dm|-od|-do|-cm|-mc|-om|-mo|-co|-oc)
+      die "❌ Invalid flag combination: $1 (conflicting modes)" ;;
     --list) list_mode=true ;;
-    --list-verbose) list_verbose_mode=true ;;
     --broken) broken_mode=true ;;
-    --count-only) count_only=true ;;
-    --json) json=true ;;
-    --sort) shift; sort_by="$1" ;;
-    --depth) shift; depth="$1" ;;
     --fix-broken) fix_broken=true ;;
-    --fzf) force_fzf=true ;;
-    --no-fzf) force_no_fzf=true ;;
-    -h|--help) sed -n '2,/^$/p' "$0" | grep '^#' | sed 's/^# \?//' ; exit 0 ;;
+    -h|--help) usage; exit 0 ;;
     -v|--version) echo "symlinkit $VERSION ($OS${IS_WSL:++WSL})"; exit 0 ;;
     *) die "❌ Unknown flag: $1" ;;
   esac; shift
 done
 
-# If --json is specified without any mode, default to list mode
-if $json && ! $list_mode && ! $list_verbose_mode && ! $broken_mode && ! $count_only && ! $show_tree && ! $show_tree_verbose && ! $fix_broken; then
-  list_mode=true
-fi
-
-# Validate fzf flags
-if $force_fzf && $force_no_fzf; then
-  die "❌ Cannot use both --fzf and --no-fzf flags together"
-fi
-
-if $force_fzf && ! has_fzf; then
-  die "❌ fzf not found but --fzf flag was specified. Install with your package manager."
-fi
-
 # --- mode execution ---
 
-# List / List-Verbose mode
-if [[ "$list_mode" == true || "$list_verbose_mode" == true ]]; then
-  if [[ -n "${1:-}" && -d "$1" ]]; then dir="$1"; shift
+# List mode
+if [[ "$list_mode" == true ]]; then
+  dir=$(get_directory_arg "${1:-}" "Enter directory to list symlinks")
+  find_results=$(safe_find "$dir" -type l)
+  # Check global flag for permission errors
+  if $FIND_PERMISSION_ERRORS; then
+    has_permission_errors=0
   else
-    prompt="Select a directory to list symlinks"
-    [[ "$list_verbose_mode" == true ]] && prompt+=" (verbose)"
-    dir=$(select_directory "$HOME" 0 5 "$prompt")
-    [[ -z "$dir" ]] && die "❌ No directory selected."
+    has_permission_errors=1
   fi
-  find_results=$(find_all_symlinks "$dir")
-  has_permission_errors=$?
-  handle_list_output "$find_results" "$dir" $has_permission_errors
+  handle_symlink_output "$find_results" "$dir" "$has_permission_errors" "symlink"
 fi
 
 # Broken symlinks mode
 if [[ "$broken_mode" == true ]]; then
-  if [[ -n "${1:-}" && -d "$1" ]]; then dir="$1"; shift
-  else
-    dir=$(select_directory "$HOME" 0 5 "Select a directory to check for broken symlinks")
-    [[ -z "$dir" ]] && die "❌ No directory selected."
-  fi
+  dir=$(get_directory_arg "${1:-}" "Enter directory to check for broken symlinks")
   find_results=$(find_broken_symlinks "$dir")
-  has_permission_errors=$?
-  handle_broken_output "$find_results" "$dir" $has_permission_errors
-fi
-
-# Count only mode
-if [[ "$count_only" == true ]]; then
-  if [[ -n "${1:-}" && -d "$1" ]]; then dir="$1"; shift
+  # Check global flag for permission errors
+  if $FIND_PERMISSION_ERRORS; then
+    has_permission_errors=0
   else
-    dir=$(select_directory "$HOME" 0 5 "Select a destination directory to count symlinks")
-    [[ -z "$dir" ]] && die "❌ No directory selected."
+    has_permission_errors=1
   fi
-  find_results=$(find_all_symlinks "$dir")
-  has_permission_errors=$?
-  handle_count_output "$find_results" "$dir" $has_permission_errors
-fi
-
-# Tree modes
-if [[ "$show_tree" == true || "$show_tree_verbose" == true ]]; then
-  dir=""
-  if [[ -n "${1:-}" && -d "$1" ]]; then
-    dir="$1"
-    shift
-  else
-    dir=$(select_directory "$HOME" 0 5 "Select a directory to display tree")
-    [[ -z "$dir" ]] && die "❌ No directory selected."
-  fi
-  display_tree "$dir" "$show_tree_verbose" "$depth"
-  exit 0
+  handle_symlink_output "$find_results" "$dir" "$has_permission_errors" "broken symlink"
 fi
 
 # Fix broken symlinks mode
 if [[ "$fix_broken" == true ]]; then
-  dir=""
-  if [[ -n "${1:-}" && -d "$1" ]]; then
-    dir="$1"
-    shift
+  dir=$(get_directory_arg "${1:-}" "Enter directory to fix broken symlinks")
+  fix_results=$(find_broken_symlinks "$dir")
+  # Check global flag for permission errors
+  if $FIND_PERMISSION_ERRORS; then
+    has_permission_errors=0
   else
-    dir=$(select_directory "$HOME" 0 5 "Select a directory to fix broken symlinks")
-    [[ -z "$dir" ]] && die "❌ No directory selected."
+    has_permission_errors=1
   fi
 
-  fix_results=$(find_broken_symlinks "$dir")
-  has_permission_errors=$?
-
-  # Use while read for Bash 3.2 compatibility (macOS)
-  broken_links=()
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && broken_links+=("$line")
-  done < <(echo "$fix_results")
-
-  if [[ "${#broken_links[@]}" -eq 0 ]] || [[ -z "${broken_links[0]}" ]]; then
+  # Check if we have any results before processing
+  if [[ -z "$fix_results" ]]; then
     if [[ "$has_permission_errors" -eq 0 ]]; then
-      echo "⚠️ Could not scan all directories due to permissions. No broken symlinks found in accessible areas."
+      log_warn "Could not scan all directories due to permissions. No broken symlinks found in accessible areas."
     else
-      echo "✅ You're good, no broken symlinks found in $dir"
+      log_ok "You're good, no broken symlinks found in $dir"
     fi
     exit 0
   fi
@@ -563,57 +435,61 @@ if [[ "$fix_broken" == true ]]; then
   deleted=0 updated=0 skipped_count=0
   delete_all=false
 
-  for link in "${broken_links[@]}"; do
+  # Stream results one at a time to avoid memory issues with large directories
+  # Use fd 3 for the list so interactive prompts can still use stdin
+  while IFS= read -r -u 3 link; do
     [[ -z "$link" ]] && continue
-    target=$(readlink "$link")
+    target=$(readlink "$link" 2>/dev/null || echo "(broken)")
 
     if $delete_all; then
       if $dry_run; then
-        echo -e "${RED}❌ Would delete (all)${RESET}: $link"
+        log_error "Would delete (all): $link"
       else
-        rm -f -- "$link"
-        echo -e "${RED}❌ Deleted (all)${RESET}: $link"
+        remove_path "$link"
+        log_error "Deleted (all): $link"
       fi
-      ((deleted++))
+      ((deleted++)) || true
       continue
     fi
 
     print_symlink "$link" "$target"
-    printf "[d]elete / [a]ll delete / [u]pdate / [s]kip > "; read -r -n1 action; echo
+    action=$(get_choice "[d]elete / [a]ll delete / [u]pdate / [s]kip > ")
     case "$action" in
       d|D) if $dry_run; then
-             echo -e "${RED}❌ Would delete${RESET}: $link"
+             log_error "Would delete: $link"
            else
-             rm -f -- "$link"
-             echo -e "${RED}❌ Deleted${RESET}: $link"
+             remove_path "$link"
+             log_error "Deleted: $link"
            fi
-           ((deleted++)) ;;
+           ((deleted++)) || true ;;
       a|A) delete_all=true
            if $dry_run; then
-             echo -e "${RED}❌ Would delete (all)${RESET}: $link"
+             log_error "Would delete (all): $link"
            else
-             rm -f -- "$link"
-             echo -e "${RED}❌ Deleted (all)${RESET}: $link"
+             remove_path "$link"
+             log_error "Deleted (all): $link"
            fi
-           ((deleted++)) ;;
-      u|U) echo "Enter new target path (blank for interactive selection):"; read -r new_target
-           [[ -z "$new_target" ]] && new_target=$(select_file "$HOME" "New target")
+           ((deleted++)) || true ;;
+      u|U) echo "Enter new target path:"
+           if ! read -r new_target; then
+             log_error "Input interrupted"; ((skipped_count++)) || true; continue
+           fi
            if [[ -n "$new_target" ]]; then
              new_target=$(realpath_wrap "$new_target")
               if $dry_run; then
-                echo -e "${GREEN}✅ Would update${RESET}: $link -> $new_target"
+                log_ok "Would update: $link -> $new_target"
               else
                 ln -sfn -- "$new_target" "$link"
-                echo -e "${GREEN}✅ Updated${RESET}: $link -> $new_target"
+                log_ok "Updated: $link -> $new_target"
               fi
-             ((updated++))
+             ((updated++)) || true
            else
-             echo "⏭️ Skipped: $link"; ((skipped_count++))
+             log_skip "$link"; ((skipped_count++)) || true
            fi ;;
-      *) echo "⏭️ Skipped: $link"; ((skipped_count++)) ;;
+      *) log_skip "$link"; ((skipped_count++)) || true ;;
     esac
-  done
-  echo -e "📊 Summary: ${RED}${deleted}${RESET} deleted, ${GREEN}${updated}${RESET} updated, ${YELLOW}${skipped_count}${RESET} skipped"
+  done 3< <(echo "$fix_results")
+  log_info "Summary: ${RED}${deleted}${RESET} deleted, ${GREEN}${updated}${RESET} updated, ${YELLOW}${skipped_count}${RESET} skipped"
   exit 0
 fi
 
@@ -625,9 +501,9 @@ if [[ "$mode" == "delete" ]]; then
     shift
   else
     if $recursive; then
-      target=$(select_directory "$HOME" 0 5 "Select a directory to delete symlinks from")
+      target=$(select_directory "Enter directory to delete symlinks from")
     else
-      target=$(select_file "$HOME" "Select a symlink to delete")
+      target=$(select_file "Enter symlink path to delete")
     fi
   fi
 
@@ -643,67 +519,72 @@ if [[ "$mode" == "delete" ]]; then
   if $recursive; then
     [[ ! -d "$target" ]] && die "❌ $target is not a directory"
 
-    symlinks_to_delete=$(find_all_symlinks "$target")
-    has_permission_errors=$?
+    symlinks_to_delete=$(safe_find "$target" -type l)
+    # Check global flag for permission errors
+    if $FIND_PERMISSION_ERRORS; then
+      has_permission_errors=0
+    else
+      has_permission_errors=1
+    fi
 
-    # Use while read for Bash 3.2 compatibility (macOS)
-    links=()
-    while IFS= read -r line; do
-      [[ -n "$line" ]] && links+=("$line")
-    done < <(echo "$symlinks_to_delete")
-
-    if [[ "${#links[@]}" -eq 0 ]] || [[ -z "${links[0]}" ]]; then
+    # Check if we have any results before processing
+    if [[ -z "$symlinks_to_delete" ]]; then
       if [[ "$has_permission_errors" -eq 0 ]]; then
-        echo "⚠️ Could not scan all directories due to permissions. No symlinks found in accessible areas."
+        log_warn "Could not scan all directories due to permissions. No symlinks found in accessible areas."
       else
-        echo "✅ No symlinks found in $target"
+        log_ok "No symlinks found in $target"
       fi
       exit 0
     fi
 
-    echo "Found ${#links[@]} symlink(s) in $target"
+    # Count symlinks for display (stream through wc -l)
+    symlink_count=$(echo "$symlinks_to_delete" | grep -c '^' || echo "0")
+    log_info "Found $symlink_count symlink(s) in $target"
+
     deleted=0 skipped_count=0
     delete_all=false
 
-    for link in "${links[@]}"; do
+    # Stream results one at a time to avoid memory issues with large directories
+    # Use fd 3 for the list so interactive prompts can still use stdin
+    while IFS= read -r -u 3 link; do
       [[ -z "$link" ]] && continue
-      link_target=$(readlink "$link")
+      link_target=$(readlink "$link" 2>/dev/null || echo "(broken)")
 
       if $delete_all; then
         if $dry_run; then
-          echo -e "${RED}❌ Would delete (all)${RESET}: $link"
+          log_error "Would delete (all): $link"
         else
-          rm -f -- "$link"
-          echo -e "${RED}❌ Deleted (all)${RESET}: $link"
+          remove_path "$link"
+          log_error "Deleted (all): $link"
         fi
-        ((deleted++))
+        ((deleted++)) || true
         continue
       fi
 
       print_symlink "$link" "$link_target"
-      printf "[d]elete / [a]ll delete / [s]kip / [q]uit > "; read -r -n1 action; echo
+      action=$(get_choice "[d]elete / [a]ll delete / [s]kip / [q]uit > ")
       case "$action" in
         d|D) if $dry_run; then
-               echo -e "${RED}❌ Would delete${RESET}: $link"
+               log_error "Would delete: $link"
              else
-               rm -f -- "$link"
-               echo -e "${RED}❌ Deleted${RESET}: $link"
+               remove_path "$link"
+               log_error "Deleted: $link"
              fi
-             ((deleted++)) ;;
+             ((deleted++)) || true ;;
         a|A) delete_all=true
              if $dry_run; then
-               echo -e "${RED}❌ Would delete (all)${RESET}: $link"
+               log_error "Would delete (all): $link"
              else
-               rm -f -- "$link"
-               echo -e "${RED}❌ Deleted (all)${RESET}: $link"
+               remove_path "$link"
+               log_error "Deleted (all): $link"
              fi
-             ((deleted++)) ;;
+             ((deleted++)) || true ;;
         q|Q) echo "Exiting..."; break ;;
-        *) echo "⏭️ Skipped: $link"; ((skipped_count++)) ;;
+        *) log_skip "$link"; ((skipped_count++)) || true ;;
       esac
-    done
+    done 3< <(echo "$symlinks_to_delete")
 
-    echo -e "📊 Summary: ${RED}${deleted}${RESET} deleted, ${YELLOW}${skipped_count}${RESET} skipped"
+    log_info "Summary: ${RED}${deleted}${RESET} deleted, ${YELLOW}${skipped_count}${RESET} skipped"
     exit 0
   fi
 
@@ -712,13 +593,13 @@ if [[ "$mode" == "delete" ]]; then
     die "❌ $target is not a symlink"
   fi
 
-  link_target=$(readlink "$target")
+  link_target=$(readlink "$target" 2>/dev/null || echo "(broken)")
 
   if $dry_run; then
-    echo -e "${RED}❌ Would delete:${RESET} $target → $link_target"
+    log_warn "Would delete: $target → $link_target"
   else
-    rm -f -- "$target"
-    echo -e "${RED}❌ Deleted:${RESET} $target → $link_target"
+    remove_path "$target"
+    log_ok "Deleted: $target → $link_target"
   fi
   exit 0
 fi
@@ -729,42 +610,58 @@ if [[ -z "$mode" && -z "${1:-}" ]]; then
   echo "❌ No operation specified." >&2
   echo "" >&2
   echo "Available operations:" >&2
-  echo "  -c    Create mode (create a new symlink)" >&2
-  echo "  -o    Overwrite mode (remove existing target, replace with symlink)" >&2
-  echo "  -m    Merge mode (recursively symlink contents into destination)" >&2
-  echo "  -d    Delete mode (remove a symlink)" >&2
+  echo "  -c, --create      Create mode (create a new symlink)" >&2
+  echo "  -o, --overwrite   Overwrite mode (remove existing target, replace with symlink)" >&2
+  echo "  -m, --merge       Merge mode (recursively symlink contents into destination)" >&2
+  echo "  -d, --delete      Delete mode (remove a symlink)" >&2
   echo "" >&2
   echo "Available commands (no operation required):" >&2
-  echo "  --list          List symlinks in a directory" >&2
-  echo "  --broken        Show broken symlinks" >&2
-  echo "  --fix-broken    Interactively fix broken symlinks" >&2
-  echo "  --tree          Show tree view" >&2
-  echo "  --count-only    Count symlinks" >&2
-  echo "  -h, --help      Show help" >&2
+  echo "  --list            List symlinks in a directory" >&2
+  echo "  --broken          Show broken symlinks" >&2
+  echo "  --fix-broken      Interactively fix broken symlinks" >&2
+  echo "  -h, --help        Show help" >&2
   exit 1
 fi
 
 if [[ -n "${1:-}" ]]; then src="$1"; shift
 else
-  src=$(select_directory "$HOME" 1 5 "Select source directory")
+  src=$(select_directory "Enter source directory")
 fi
 [[ -z "$src" ]] && die "❌ No source selected."
 
 if [[ -n "${1:-}" ]]; then dest="$1"; shift
 else
-  dest=$(select_directory "$HOME" 0 5 "Select destination directory")
+  dest=$(select_directory "Enter destination directory")
 fi
 [[ -z "$dest" ]] && die "❌ No destination selected."
 
 src=$(realpath_wrap "$src")
 dest=$(realpath_wrap "$dest")
-if ! $dry_run; then
-  mkdir -p -- "$dest"
+
+# Security: Validate paths before any operations
+validate_path_safety "$src"
+validate_path_safety "$dest"
+
+# Mimic ln -s behavior: if dest is an existing directory, put symlink inside it
+if [[ -d "$dest" ]]; then
+  linkname=$(basename -- "$src")
+  target="$dest/$linkname"
+else
+  # Otherwise use dest as the exact symlink path
+  target="$dest"
+  # Create parent directory if needed
+  if ! $dry_run; then
+    parent_dir=$(dirname -- "$dest")
+    mkdir -p -- "$parent_dir"
+  fi
 fi
-linkname=$(basename -- "$src"); target="$dest/$linkname"
+
+# Security: Validate computed target path
+validate_path_safety "$target"
 
 if [[ -e "$target" || -L "$target" ]]; then
-  if [[ -z "$mode" ]]; then printf "⚠️  %s exists.\n[o]verwrite / [m]erge / [c]ancel > " "$target"; read -r -n1 choice; echo
+  if [[ -z "$mode" ]]; then
+    choice=$(get_choice "⚠️  $target exists.\n[o]verwrite / [m]erge / [c]ancel > ")
     case "$choice" in o|O) mode="overwrite";; m|M) mode="merge";; *) die "❌ Cancelled.";; esac
   fi
 fi
@@ -785,7 +682,15 @@ if $recursive; then
   fi
 fi
 
+# For merge mode, always use dest as-is (merge needs the target directory, not a symlink)
+if [[ "$mode" == "merge" ]]; then
+  target="$dest"
+fi
+
 if [[ "$mode" == "create" ]]; then
+  # Security: Validate target path safety
+  validate_path_safety "$target"
+
   if [[ -e "$target" || -L "$target" ]]; then
     die "❌ Target already exists: $target\n   Use -o to overwrite or -m to merge into existing target"
   fi
@@ -797,32 +702,33 @@ if [[ "$mode" == "create" ]]; then
   fi
 
   if $dry_run; then
-    echo -e "${GREEN}✅ Would create symlink:${RESET} $target → $src"
+    log_ok "Would create symlink: $target → $src"
   else
-    echo -e "${GREEN}✅ Successfully created symlink:${RESET} $target → $src"
+    log_ok "Successfully created symlink: $target → $src"
   fi
 fi
 
 if [[ "$mode" == "overwrite" ]]; then
   if ! $dry_run; then
-    # Security: Only use rm -f for symlinks, rm -rf for directories/files
-    if [[ -L "$target" ]]; then
-      if ! rm -f -- "$target" 2>/dev/null; then
-        die "❌ Failed to remove existing symlink: $target\n   Check permissions"
-      fi
-    else
-      if ! rm -rf -- "$target" 2>/dev/null; then
-        die "❌ Failed to remove existing target: $target\n   Check permissions"
-      fi
+    # Remove existing target with safety validation
+    if ! remove_path "$target" 2>/dev/null; then
+      die "❌ Failed to remove existing path: $target\n   Check permissions"
     fi
     if ! ln -s -- "$src" "$target" 2>/dev/null; then
       die "❌ Failed to create symlink after removal: $target → $src\n   Check permissions and path validity"
     fi
   fi
-  $dry_run && echo -e "${RED}🔄 Would overwrite:${RESET} $target → $src" || echo -e "${RED}🔄 Overwritten:${RESET} $target → $src"
+  if $dry_run; then
+    log_overwrite "Would overwrite: $target → $src"
+  else
+    log_overwrite "Overwritten: $target → $src"
+  fi
 fi
 
 if [[ "$mode" == "merge" ]]; then
+  # Security: Validate target path safety
+  validate_path_safety "$target"
+
   if ! $dry_run; then
     if ! mkdir -p -- "$target" 2>/dev/null; then
       die "❌ Failed to create target directory: $target\n   Check permissions"
@@ -830,92 +736,72 @@ if [[ "$mode" == "merge" ]]; then
   fi
   overwrite_all=$merge_overwrite_all
   merge_output=$(safe_find "$src")
-  has_permission_errors=$?
-  # Use while read for Bash 3.2 compatibility (macOS)
-  items=()
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && items+=("$line")
-  done < <(echo "$merge_output")
-  for item in "${items[@]}"; do [[ -z "$item" || "$item" == "$src" ]] && continue
+  # Check global flag for permission errors
+  if $FIND_PERMISSION_ERRORS; then
+    has_permission_errors=0
+  else
+    has_permission_errors=1
+  fi
+
+  # Stream results one at a time to avoid memory issues with large directories
+  # Use fd 3 for the list so interactive prompts can still use stdin
+  while IFS= read -r -u 3 item; do
+    [[ -z "$item" || "$item" == "$src" ]] && continue
     rel="${item#"$src"/}"; dest_item="$target/$rel"
+
+    # Security: Validate destination item path
+    validate_path_safety "$dest_item"
+
     if [[ -d "$item" ]]; then
       if ! $dry_run; then
         if ! mkdir -p -- "$dest_item" 2>/dev/null; then
-          echo -e "${RED}⚠️  Failed to create directory:${RESET} $dest_item (skipping)" >&2
+          log_warn "Failed to create directory: $dest_item (skipping)"
           continue
         fi
       fi
     else
-       if [[ -e "$dest_item" || -L "$dest_item" ]]; then
-         if $dry_run; then
-           if $dry_run_overwrite; then echo -e "${RED}🔄 Would overwrite:${RESET} $dest_item"
-           else echo -e "${YELLOW}⏭️ Would skip:${RESET} $dest_item"; fi
-         else
-           if $overwrite_all; then
-             # Security: Check if target is symlink first
-             if [[ -L "$dest_item" ]]; then
-               rm -f -- "$dest_item" 2>/dev/null
-             else
-               rm -rf -- "$dest_item" 2>/dev/null
-             fi
-             if ln -s -- "$item" "$dest_item" 2>/dev/null; then
-               echo -e "${RED}🔄 Overwritten (all):${RESET} $dest_item"; ((overwritten++))
-             else
-               echo -e "${RED}⚠️  Failed to overwrite:${RESET} $dest_item (skipping)" >&2
-             fi
-           else
-             printf "⚠️  Conflict: %s exists.\n[s]kip / [o]verwrite / [a]ll overwrite / [c]ancel > " "$dest_item"
-             read -r -n1 action; echo
-             case "$action" in
-               s|S) echo -e "${YELLOW}⏭️ Skipped:${RESET} $dest_item"; ((skipped++)) ;;
-               o|O) # Security: Check if target is symlink first
-                    if [[ -L "$dest_item" ]]; then
-                      rm -f -- "$dest_item" 2>/dev/null
-                    else
-                      rm -rf -- "$dest_item" 2>/dev/null
-                    fi
-                    if ln -s -- "$item" "$dest_item" 2>/dev/null; then
-                      echo -e "${RED}🔄 Overwritten:${RESET} $dest_item"; ((overwritten++))
-                    else
-                      echo -e "${RED}⚠️  Failed to overwrite:${RESET} $dest_item" >&2; ((skipped++))
-                    fi ;;
-               a|A) overwrite_all=true
-                    # Security: Check if target is symlink first
-                    if [[ -L "$dest_item" ]]; then
-                      rm -f -- "$dest_item" 2>/dev/null
-                    else
-                      rm -rf -- "$dest_item" 2>/dev/null
-                    fi
-                    if ln -s -- "$item" "$dest_item" 2>/dev/null; then
-                      echo -e "${RED}🔄 Overwritten (all):${RESET} $dest_item"; ((overwritten++))
-                    else
-                      echo -e "${RED}⚠️  Failed to overwrite:${RESET} $dest_item" >&2; ((skipped++))
-                    fi ;;
-               *) die "❌ Cancelled." ;;
-             esac
-           fi
-         fi
+      if [[ -e "$dest_item" || -L "$dest_item" ]]; then
+        if $dry_run; then
+          echo "⏭️ Would skip: $dest_item"
+        elif $overwrite_all; then
+          if overwrite_item "$item" "$dest_item"; then
+            log_overwrite "Overwritten (all): $dest_item"; ((overwritten++)) || true
+          else
+            log_warn "Failed to overwrite: $dest_item (skipping)"
+          fi
+        else
+          action=$(get_choice "⚠️  Conflict: $dest_item exists.\n[s]kip / [o]verwrite / [a]ll overwrite / [c]ancel > ")
+          case "$action" in
+            s|S) log_skip "$dest_item"; ((skipped++)) || true ;;
+            o|O) if overwrite_item "$item" "$dest_item"; then
+                   log_overwrite "Overwritten: $dest_item"; ((overwritten++)) || true
+                 else
+                   log_warn "Failed to overwrite: $dest_item"; ((skipped++)) || true
+                 fi ;;
+            a|A) overwrite_all=true
+                 if overwrite_item "$item" "$dest_item"; then
+                   log_overwrite "Overwritten (all): $dest_item"; ((overwritten++)) || true
+                 else
+                   log_warn "Failed to overwrite: $dest_item"; ((skipped++)) || true
+                 fi ;;
+            *) die "❌ Cancelled." ;;
+          esac
+        fi
       else
         if $dry_run; then
-          echo -e "${GREEN}✅ Would link:${RESET} $dest_item"
-          ((linked++))
+          log_ok "Would link: $dest_item"; ((linked++)) || true
+        elif link_item "$item" "$dest_item"; then
+          log_ok "Linked: $dest_item"; ((linked++)) || true
         else
-          if ln -s -- "$item" "$dest_item" 2>/dev/null; then
-            echo -e "${GREEN}✅ Linked:${RESET} $dest_item"
-            ((linked++))
-          else
-            echo -e "${RED}⚠️  Failed to link:${RESET} $dest_item" >&2
-          fi
+          log_warn "Failed to link: $dest_item"
         fi
       fi
     fi
-  done
+  done 3< <(echo "$merge_output")
 fi
 
 # --- end output ---
 if $dry_run; then
-  echo -e "(${YELLOW}Dry run:${RESET} no changes applied)"
-  echo -e "📊 Summary: ${GREEN}${linked}${RESET} would link, ${RED}${overwritten}${RESET} would overwrite, ${YELLOW}${skipped}${RESET} would skip"
-elif [[ "$show_tree" == true || "$show_tree_verbose" == true ]]; then
-  display_tree "$dest" "$show_tree_verbose" "$depth"
+  log_warn "Dry run: no changes applied"
+  log_info "Summary: ${GREEN}${linked}${RESET} would link, ${RED}${overwritten}${RESET} would overwrite, ${YELLOW}${skipped}${RESET} would skip"
 fi

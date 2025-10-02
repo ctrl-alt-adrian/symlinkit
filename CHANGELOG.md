@@ -3,6 +3,171 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [2.0.0] - 2025-10-01
+
+### 🎯 Major Release: Return to Core Mission + Zero Dependencies
+
+symlinkit v2.0 represents a significant refocus on what matters: **a fast, secure, simple CRUD tool for managing symlinks with zero dependencies**. This release removes feature creep, external dependencies, and returns to the original vision of making symlink management straightforward and trustworthy.
+
+### ⚠️ BREAKING CHANGES
+
+**Removed Features** (no longer supported):
+- `--doctor` - Dependency diagnostics
+- `--json` - JSON output mode
+- `--tree` / `--tree-verbose` - Tree view modes
+- `--count-only` - Count-only output
+- `--sort` - Result sorting
+- `--depth` - Depth control
+- `--dry-run-overwrite` - Use `--dry-run` instead
+- Long flag aliases (`--create`, `--overwrite`, `--merge`, `--delete`) - Use short flags (`-c`, `-o`, `-m`, `-d`)
+- Long help/version flags (`--help`, `--version`) - Use short flags (`-h`, `-v`)
+
+**Removed Dependencies**:
+- **fzf** - No longer used for interactive selection
+- `--fzf` flag removed
+- `--no-fzf` flag removed (no longer needed)
+- All interactive selection now uses simple prompts
+
+### 🚀 What's Kept (Core CRUD Operations)
+
+**Symlink Operations**:
+- `-c` - Create mode
+- `-o` - Overwrite mode
+- `-m` - Merge mode
+- `-d` - Delete mode
+- `-r` - Recursive mode
+- `--dry-run` - Safe previews
+
+**Link Management**:
+- `--list` - List symlinks
+- `--broken` - Find broken links
+- `--fix-broken` - Fix broken links interactively
+
+**User Experience**:
+- `--no-fzf` - Disable fzf selection
+- `-h` - Help
+- `-v` - Version
+- All security hardening from v1.8.4 retained
+
+### 📊 Impact
+
+- **Code Reduction**: 1147 → 798 lines (30% smaller, 349 lines removed)
+- **Zero Dependencies**: No external tools required (fzf, jq, tree all removed)
+- **Cognitive Load**: Dramatically reduced - focus on core operations only
+- **Maintainability**: Easier to understand, debug, and extend
+- **Security**: All v1.8.4 hardening retained (path validation, sanitization, streaming)
+- **Philosophy**: "CRUD tool for symlinks" not "sysadmin toolbox"
+- **Portability**: Works anywhere bash works - no installation dependencies
+
+### 📝 Documentation Updates
+
+- Updated README to focus on core CRUD functionality
+- Simplified man page, removed deprecated features
+- Updated bash and zsh completion scripts
+- Maintained cross-platform compatibility (Linux, macOS, WSL)
+
+### 🔄 Migration Guide
+
+If you were using removed features:
+
+| Removed Feature | Alternative |
+|----------------|-------------|
+| `--json` | Pipe `--list` output to `jq` if needed |
+| `--tree` | Use standard `tree` command |
+| `--count-only` | Use `--list \| wc -l` |
+| `--sort` | Pipe output through `sort` |
+| `--doctor` | Not needed - zero dependencies |
+| `--dry-run-overwrite` | Use `--dry-run` (defaults to skip) |
+| `--fzf` / `--no-fzf` | Not needed - uses prompts by default |
+| Interactive fzf selection | Manual prompts (enter paths when asked) |
+
+### 💡 Rationale
+
+symlinkit started as a simple tool for dotfile management. Over time, features and dependencies accumulated (fzf, JSON output, tree views, diagnostics) that strayed from the core mission. v2.0 returns to the fundamentals: **create, read, update, delete symlinks with zero dependencies**. Fast. Secure. Simple. Portable.
+
+**Why remove fzf?**
+- Adds external dependency for feature used only when args aren't provided
+- Simple prompts are more predictable and portable
+- Works everywhere bash works - no installation required
+- Reduces cognitive load - one way to do things, not two
+
+If you need advanced features, standard Unix tools (`tree`, `jq`, `find`) compose well with symlinkit's focused output. If you need fzf selection, you can pipe paths to symlinkit.
+
+---
+
+## [1.8.4] - 2025-10-01
+
+### 🚀 Features
+
+- **Doctor Command**: Added `--doctor` flag for dependency diagnostics
+  - Shows version and OS information
+  - Checks core utilities (realpath, find)
+  - Checks optional utilities (jq, fzf, tree)
+  - Reports guaranteed vs. best-effort functionality
+  - Provides installation instructions for missing tools
+  - Helps users verify installation and debug issues
+
+- **Long Flag Support**: Added long-form alternatives for operation flags
+  - `--create` (alias for `-c`)
+  - `--overwrite` (alias for `-o`)
+  - `--merge` (alias for `-m`)
+  - `--delete` (alias for `-d`)
+  - Improves readability in scripts and documentation
+
+### 🔒 Security Hardening
+
+- **Path Safety Validation**: Added comprehensive path validation
+  - Blocks operations on root directory (`/`, `/.`, `/..`)
+  - Blocks operations on home directory root (`$HOME`)
+  - Validates both destination and computed target paths
+  - Prevents accidental `rm -rf` on critical directories
+
+- **Control Character Sanitization**: Added terminal safety
+  - New `sanitize_display()` function strips control characters
+  - Prevents terminal escape sequence injection attacks
+  - Control characters replaced with `?` in output
+  - All symlink paths sanitized before display
+
+- **Set -e Hardening**: Comprehensive audit and fixes
+  - Protected all `readlink` calls with fallbacks
+  - Protected interactive `read` prompts with error handling
+  - Fixed `grep` pipelines with `|| true` where needed
+  - Protected `tree` command with fallback handling
+  - All arithmetic operations use `|| true` to prevent exits
+
+- **Streaming Architecture**: Memory safety improvements
+  - Converted `--fix-broken` to streaming (no array buffering)
+  - Converted recursive delete to streaming
+  - Uses file descriptor 3 to separate list input from stdin
+  - Prevents memory issues with millions of symlinks
+  - O(1) memory usage instead of O(n)
+
+- **TOCTOU Mitigation**: Verified and documented protections
+  - All `rm`/`ln` commands use `--` to prevent option injection
+  - Path validation prevents critical system paths
+  - Design mitigates race condition risks
+
+### 🔧 Improvements
+
+- **Install Script**: Added silent reinstall support
+  - Detects existing installation
+  - Updates silently without errors
+  - Shows "Updated existing installation" message
+
+### 📚 Documentation
+
+- **Help Text**: Added `--doctor` and long flag documentation
+- **Man Page**: Updated with `--doctor` and version 1.8.4
+- **README**: Added `--doctor` example and flag documentation
+- **Wiki**: Comprehensive `--doctor` documentation in API Reference
+- **Completions**: Updated bash and zsh completion scripts
+
+### ✅ Testing
+
+- All 31 existing tests pass
+- Security tests verified (root protection, control char sanitization)
+- Shellcheck validation clean
+
 ## [1.8.3] - 2025-09-30
 
 ### 🧪 Testing

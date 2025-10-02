@@ -53,12 +53,19 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 echo "Downloading..."
 download "$RAW_URL/symlinkit" "$TEMP_DIR/symlinkit" "script"
 
-# Install
+# Install (silently reinstall if already exists)
 [[ -d "$INSTALL_DIR" ]] || mkdir -p "$INSTALL_DIR"
 chmod +x "$TEMP_DIR/symlinkit"
-cp "$TEMP_DIR/symlinkit" "$INSTALL_DIR/symlinkit" || die "Install failed"
 
-echo "Installed to $INSTALL_DIR/symlinkit"
+if [[ -f "$INSTALL_DIR/symlinkit" ]]; then
+  # Reinstall silently
+  cp "$TEMP_DIR/symlinkit" "$INSTALL_DIR/symlinkit" || die "Reinstall failed"
+  echo "Updated existing installation at $INSTALL_DIR/symlinkit"
+else
+  # Fresh install
+  cp "$TEMP_DIR/symlinkit" "$INSTALL_DIR/symlinkit" || die "Install failed"
+  echo "Installed to $INSTALL_DIR/symlinkit"
+fi
 
 # Update shell rc files
 if [[ ":$PATH:" != *":$HOME/bin:"* ]]; then
@@ -80,12 +87,52 @@ if [[ ":$PATH:" != *":$HOME/bin:"* ]]; then
 fi
 
 # Install man page
-echo "Downloading man page..."
-download "$RAW_URL/man/symlinkit.1" "$TEMP_DIR/symlinkit.1"
+download "$RAW_URL/man/symlinkit.1" "$TEMP_DIR/symlinkit.1" >/dev/null 2>&1
 
-MAN_DIR="$HOME/.local/share/man/man1"
+# Detect appropriate man page directory
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  MAN_DIR="/usr/local/share/man/man1"  # macOS user applications
+else
+  MAN_DIR="$HOME/.local/share/man/man1"  # Linux user-local
+fi
+
 mkdir -p "$MAN_DIR" 2>/dev/null || true
-cp "$TEMP_DIR/symlinkit.1" "$MAN_DIR/symlinkit.1" && echo "Man page installed"
+cp "$TEMP_DIR/symlinkit.1" "$MAN_DIR/symlinkit.1" 2>/dev/null || true
+
+# Install completions only for shells that exist
+# Bash completion
+if has_cmd bash; then
+  download "$RAW_URL/completions/symlinkit.bash" "$TEMP_DIR/symlinkit.bash" >/dev/null 2>&1
+
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    BASH_COMPLETION_DIR="/usr/local/etc/bash_completion.d"
+  else
+    BASH_COMPLETION_DIR="$HOME/.local/share/bash-completion/completions"
+  fi
+  mkdir -p "$BASH_COMPLETION_DIR" 2>/dev/null || true
+  cp "$TEMP_DIR/symlinkit.bash" "$BASH_COMPLETION_DIR/symlinkit" 2>/dev/null || true
+fi
+
+# Zsh completion
+if has_cmd zsh; then
+  download "$RAW_URL/completions/_symlinkit" "$TEMP_DIR/_symlinkit" >/dev/null 2>&1
+
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    ZSH_COMPLETION_DIR="/usr/local/share/zsh/site-functions"
+  else
+    ZSH_COMPLETION_DIR="$HOME/.local/share/zsh/site-functions"
+  fi
+  mkdir -p "$ZSH_COMPLETION_DIR" 2>/dev/null || true
+  cp "$TEMP_DIR/_symlinkit" "$ZSH_COMPLETION_DIR/_symlinkit" 2>/dev/null || true
+fi
 
 echo ""
 echo "Done! Run 'symlinkit --help' to get started."
+echo ""
+
+# Show installed version
+if command -v symlinkit >/dev/null 2>&1; then
+  echo "Installed version: $(symlinkit --version)"
+else
+  echo "Note: You may need to restart your shell or run: source ~/.bashrc"
+fi

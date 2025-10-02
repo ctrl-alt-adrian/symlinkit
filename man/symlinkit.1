@@ -1,43 +1,37 @@
 .\" Manpage for symlinkit
 .\" Save as symlinkit.1 in ~/.local/share/man/man1/
-.TH SYMLINKIT 1 "September 2025" "1.8.3" "User Commands"
+.TH SYMLINKIT 1 "October 2025" "2.0.0" "User Commands"
 .SH NAME
-symlinkit \- flexible symlink helper with intelligent fzf fallback, dry-run, and symlink overview tools
+symlinkit \- A focused CRUD tool for managing symlinks
 .SH SYNOPSIS
 .B symlinkit
 [OPTIONS] [SOURCE] [DESTINATION]
 .SH DESCRIPTION
 The
 .B symlinkit
-command simplifies creating and inspecting symbolic links, with intelligent
-interactive selection, merge/overwrite modes, dry-run previews, and inspection utilities.
+command provides a simple, secure way to create, read, update, and delete symbolic links
+with \fBzero dependencies\fR. It uses interactive prompts, dry-run previews,
+and utilities for managing existing symlinks.
 
 An operation flag (\fB-c\fR, \fB-o\fR, \fB-m\fR, or \fB-d\fR) is required for
 symlink creation or deletion operations. Inspection commands like
-\fB--list\fR, \fB--tree\fR, \fB--broken\fR do not require operation flags.
+\fB--list\fR, \fB--broken\fR, and \fB--fix-broken\fR do not require operation flags.
 
-If SOURCE or DESTINATION are not provided, you will be prompted interactively:
-.br
-\- With \fBfzf\fR (if available): Interactive fuzzy finder with preview
-.br
-\- Without \fBfzf\fR: Manual prompts for typing directory paths
-
-In addition to symlink creation, symlinkit can list existing symlinks, show
-broken symlinks, produce overviews with \fBtree\fR, and output results in JSON.
+If SOURCE or DESTINATION are not provided, you will be prompted to enter paths manually.
 
 .SH OPTIONS
 .TP
-.B -c
+.B -c, --create
 Create mode (create a new symlink). Fails if destination path already exists,
 suggesting \fB-o\fR or \fB-m\fR alternatives. Supports \fB--dry-run\fR.
 .TP
-.B -o
+.B -o, --overwrite
 Overwrite mode (removes existing file/directory at destination path, replaces with symlink to source).
 .TP
-.B -m
+.B -m, --merge
 Merge mode (recursively creates symlinks for each file in source directory, placing them in destination).
 .TP
-.B -d
+.B -d, --delete
 Delete mode (removes a symlink only, does not affect what the symlink points to).
 Requires a symlink path as argument. Shows the symlink target before deletion.
 Supports \fB--dry-run\fR. Can be combined with \fB-r\fR for recursive deletion.
@@ -54,129 +48,39 @@ Recursive mode (use with \fB-c\fR, \fB-o\fR, or \fB-d\fR).
 All recursive operations support the \fB[a]ll\fR option to apply actions to all remaining items.
 .TP
 .B --dry-run
-Preview actions (conflicts default to skip).
-.TP
-.B --dry-run-overwrite
-Preview actions (conflicts default to overwrite).
-.TP
-.B --fzf
-Force fzf usage (error if not installed). Use this for scripts requiring
-consistent interactive behavior.
-.TP
-.B --no-fzf
-Disable fzf and use manual prompts only, even if fzf is available.
-Useful for minimal environments or when scripting requires text-based input.
-.TP
-.B --tree
-Show a minimal directory tree (symlink arrows only).  
-May be used standalone (\fBsymlinkit --tree DIR\fR) or after linking
-(\fBsymlinkit -o SRC DEST --tree\fR).
-.TP
-.B --tree-verbose
-Show a verbose directory tree with permissions and symlink arrows.  
-Also works standalone or after linking.
+Preview actions without making changes.
 .TP
 .B --list [DIR]
-List all symlinks under DIR.
-If no DIR is provided, defaults to $HOME.
+List all symlinks under DIR. If DIR is not provided, prompts for interactive selection.
 .TP
 .B --broken [DIR]
-List only broken symlinks under DIR.
-If no DIR is provided, defaults to $HOME.
-.TP
-.TP
-.B --count-only [DIR]
-Show only the total number of symlinks under DIR (default: $HOME).
-.TP
-.B --depth N
-Limit overview, tree, and fix-broken search depth (default: 3).
-.TP
-.B --sort path|target
-Sort results by path or symlink target.
-.TP
-.B --json
-Output results in JSON format (applies to \fB--list\fR, \fB--broken\fR, and
-\fB--count-only\fR). If no other mode is specified, defaults to list mode.
-Works with or without \fBjq\fR (uses fallback formatting if \fBjq\fR unavailable).
+List only broken symlinks under DIR. If DIR is not provided, prompts for interactive selection.
 .TP
 .B --fix-broken [DIR]
-Interactively fix broken symlinks under DIR (default: $HOME).
-For each broken link, you can delete, update the target (with an optional fzf picker),
-or skip. Use \fB[a]ll\fR to delete all remaining broken symlinks.
-Supports \fB--dry-run\fR to preview changes without making them.
-The \fB--depth\fR option applies to the interactive search picker.
-A summary of actions is shown at the end.
+Interactively fix broken symlinks under DIR. For each broken link, you can delete,
+update the target, or skip. Use \fB[a]ll\fR to delete all remaining broken symlinks.
+Supports \fB--dry-run\fR.
 .TP
 .B -h, --help
-Show a colorized help message.
+Show help message.
 .TP
 .B -v, --version
 Show version number and detected platform (Linux, macOS, or WSL).
 
 .SH EXAMPLES
-List symlinks in $HOME:
-.nf
-symlinkit --list
-.fi
-
-List broken symlinks in /etc:
-.nf
-symlinkit --broken /etc
-.fi
-
-JSON output of symlinks in ~/bin:
-.nf
-symlinkit --json ~/bin
-.fi
-
-JSON output of broken symlinks:
-.nf
-symlinkit --json --broken ~/bin
-.fi
-
-Minimal tree view of ~/.config:
-.nf
-symlinkit --tree ~/.config
-.fi
-
-Verbose tree view of ~/.config:
-.nf
-symlinkit --tree-verbose ~/.config
-.fi
-
-Fix broken symlinks under $HOME:
-.nf
-symlinkit --fix-broken
-.fi
-
-Preview fixing broken symlinks (dry-run):
-.nf
-symlinkit --dry-run --fix-broken ~/projects
-.fi
-
 Create a new symlink:
 .nf
 symlinkit -c ~/dotfiles/config ~/.config
 .fi
 
-Overwrite:
+Overwrite existing destination:
 .nf
 symlinkit -o ~/dotfiles/config ~/.config
 .fi
 
-Merge contents:
+Merge directory contents:
 .nf
 symlinkit -m ~/dotfiles/scripts ~/bin
-.fi
-
-Create recursive (equivalent to merge):
-.nf
-symlinkit -cr ~/dotfiles/config ~/.config
-.fi
-
-Overwrite recursive with interactive prompts:
-.nf
-symlinkit -or ~/dotfiles/scripts ~/bin
 .fi
 
 Delete a symlink:
@@ -184,67 +88,40 @@ Delete a symlink:
 symlinkit -d ~/.config/nvim
 .fi
 
-Delete all symlinks in a directory recursively:
+Preview changes (dry-run):
 .nf
-symlinkit -dr ~/.config
+symlinkit --dry-run -m ~/src/project ~/deploy
 .fi
 
-Preview delete (dry-run):
+List all symlinks in $HOME:
 .nf
-symlinkit --dry-run -d ~/.local/bin/old-link
+symlinkit --list
 .fi
 
-Preview recursive delete (dry-run):
+List broken symlinks in a directory:
 .nf
-symlinkit --dry-run -dr ~/test-links
+symlinkit --broken /etc
 .fi
 
-Force fzf usage:
+Fix broken symlinks interactively:
 .nf
-symlinkit --fzf --list
-.fi
-
-Use manual prompts only:
-.nf
-symlinkit --no-fzf --broken ~/dotfiles
+symlinkit --fix-broken ~/projects
 .fi
 
 .SH TESTING
-symlinkit includes a comprehensive test suite for validation across different environments.
-
-For help with testing commands:
+symlinkit includes a test suite for validation:
 .nf
-./generate-tests.sh -h      # Show test generation help
-./run_tests.sh -h           # Show test runner help
+./tests/simple_test.sh
 .fi
-
-To run tests, first generate them locally:
-.nf
-./generate-tests.sh
-.fi
-
-Then run the test suite:
-.nf
-./run_tests.sh
-.fi
-
-Individual test suites can be run separately:
-.nf
-./simple_test.sh           # Basic functionality tests
-./test_json_fallback.sh     # JSON functionality without jq
-.fi
-
-Tests are generated locally and not committed to the repository,
-keeping the codebase clean while allowing thorough validation.
 
 .SH AUTHOR
 Written by Adrian Thomas.
 
 .SH SEE ALSO
-ln(1), fzf(1), tree(1), find(1), jq(1)
+ln(1), find(1)
 
 .SH VERSION
-symlinkit 1.7.0 (September 2025)
+symlinkit 2.0.0 (October 2025)
 
 .SH REPORTING BUGS
 Report issues or feature requests at:
