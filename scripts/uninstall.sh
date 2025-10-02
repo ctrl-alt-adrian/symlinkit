@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # symlinkit uninstaller
-# Usage: curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/uninstall.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/scripts/uninstall.sh | bash
 
 set -euo pipefail
 

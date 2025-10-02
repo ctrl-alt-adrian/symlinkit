@@ -348,7 +348,7 @@ If you need advanced features, standard Unix tools (`tree`, `jq`, `find`) compos
   - Updates shell configuration (`.bashrc`/`.zshrc`)
   - Installs man page to `~/.local/share/man/man1/`
   - No prompts or choices - streamlined experience
-  - Usage: `curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/install.sh | bash`
+  - Usage: `curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/scripts/install.sh | bash`
 
 ### 📚 Documentation
 
