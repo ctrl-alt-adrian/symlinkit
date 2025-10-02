@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [2.0.5] - 2025-10-02
+
+### 🐛 Bug Fixes
+
+- **Install Script**: Fixed 404 error in install script - corrected download path from `/symlinkit` to `/scripts/symlinkit`
+- **Documentation**: Updated all install/uninstall curl paths to use correct `/scripts/` prefix
+
 ## [2.0.4] - 2025-10-02
 
 ### 🐛 Bug Fixes
