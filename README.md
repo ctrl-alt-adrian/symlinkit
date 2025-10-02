@@ -19,6 +19,7 @@ Create, read, update, and delete symlinks with confidence. Built for managing do
 - [Features](#features)
 - [Supported Operating Systems](#supported-operating-systems)
 - [Installation](#installation)
+- [Uninstall](#uninstall)
 - [Flags](#flags)
 - [Examples](#examples)
 - [Testing](#testing)
@@ -70,7 +71,18 @@ sudo cp symlinkit /usr/local/bin/
 
 **Note:** The `chmod +x symlinkit` step is required to make the script executable before copying it.
 
-For detailed installation options, see the **[Installation Guide](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Installation)** on the wiki.
+---
+
+## Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/uninstall.sh | bash
+```
+
+This removes `symlinkit`, the man page, and completion scripts.  
+Your shell config entries (e.g. `~/.bashrc`, `~/.zshrc`) won’t be auto-edited — remove those lines manually if desired.
+
+For detailed installation and uninstall options, see the **[Installation Guide](https://github.com/ctrl-alt-adrian/symlinkit/wiki/Installation)** on the wiki.
 
 ---
 
@@ -169,6 +181,7 @@ When reporting, include your OS, symlinkit version (`./symlinkit -v`), and steps
 **Required:** None - symlinkit has **zero dependencies** and works out of the box
 
 **macOS:** Install GNU utilities via Homebrew:
+
 ```bash
 brew install coreutils findutils
 ```

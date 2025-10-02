@@ -4,17 +4,23 @@ set -euo pipefail
 # Run with -h or --help for usage information
 
 # --- configuration ---
-VERSION="2.0.0"
+VERSION="2.0.1"
 
 # --- os detection ---
 case "$(uname -s)" in
-  Linux*)   OS="Linux" ;;
-  Darwin*)  OS="macOS" ;;
+  Linux*) 
+    if [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qiE "(microsoft|wsl)" /proc/version 2>/dev/null; then
+      OS="Linux (WSL)"
+    else
+      OS="Linux"
+    fi
+    ;;
+  Darwin*) OS="macOS" ;;
   CYGWIN*|MINGW*|MSYS*) OS="WindowsLike" ;;
-  *)        OS="Unknown" ;;
+  *) OS="Unknown" ;;
 esac
 
-IS_WSL=false
+IS_WSL=${IS_WSL:-false}
 if [[ "$OS" == "Linux" ]] && { [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qiE "(microsoft|wsl)" /proc/version 2>/dev/null; }; then
   IS_WSL=true
 fi
@@ -32,7 +38,7 @@ RESET="\033[0m"
 sanitize_display() {
   local input="$1"
   # Remove control characters (ASCII 0-31 and 127) except newline/tab
-  printf '%s' "$input" | LC_ALL=C sed 's/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/?/g'
+  printf '%s' "$input" | tr -cd '\11\12\15\40-\176'
 }
 
 # Validate path is safe for rm operations
@@ -378,7 +384,10 @@ while [[ $# -gt 0 && "$1" == -* ]]; do
     --broken) broken_mode=true ;;
     --fix-broken) fix_broken=true ;;
     -h|--help) usage; exit 0 ;;
-    -v|--version) echo "symlinkit $VERSION ($OS${IS_WSL:++WSL})"; exit 0 ;;
+    -v|--version)
+      echo "symlinkit $VERSION ($OS)"
+      exit 0
+      ;;
     *) die "❌ Unknown flag: $1" ;;
   esac; shift
 done
@@ -606,21 +615,8 @@ fi
 
 # --- core symlink logic ---
 # Check if operation mode is specified before proceeding
-if [[ -z "$mode" && -z "${1:-}" ]]; then
-  echo "❌ No operation specified." >&2
-  echo "" >&2
-  echo "Available operations:" >&2
-  echo "  -c, --create      Create mode (create a new symlink)" >&2
-  echo "  -o, --overwrite   Overwrite mode (remove existing target, replace with symlink)" >&2
-  echo "  -m, --merge       Merge mode (recursively symlink contents into destination)" >&2
-  echo "  -d, --delete      Delete mode (remove a symlink)" >&2
-  echo "" >&2
-  echo "Available commands (no operation required):" >&2
-  echo "  --list            List symlinks in a directory" >&2
-  echo "  --broken          Show broken symlinks" >&2
-  echo "  --fix-broken      Interactively fix broken symlinks" >&2
-  echo "  -h, --help        Show help" >&2
-  exit 1
+if [[ -z "$mode" ]]; then
+  die "❌ No operation specified. Try -c (create), -o (overwrite), -m (merge), or -d (delete). Run --help for details."
 fi
 
 if [[ -n "${1:-}" ]]; then src="$1"; shift

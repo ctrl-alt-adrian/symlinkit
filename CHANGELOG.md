@@ -3,6 +3,24 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Conventional Commits](https://www.conventionalcommits.org).
 
+## [2.0.1] - 2025-10-02
+
+### 🐛 Fixes
+
+- Fixed path display issues on macOS/WSL (`realpath_wrap` cleanup).
+- Fixed `--version` output (no more stray `+WSL`).
+- Fixed unbound variable error in strict shells (`IS_WSL`).
+
+### ➕ Added
+
+- New `uninstall.sh` for safe removal of symlinkit (binary, man page, completions).
+
+### ✅ Testing
+
+- All core tests now pass on Linux and macOS.
+
+---
+
 ## [2.0.0] - 2025-10-01
 
 ### 🎯 Major Release: Return to Core Mission + Zero Dependencies
@@ -12,6 +30,7 @@ symlinkit v2.0 represents a significant refocus on what matters: **a fast, secur
 ### ⚠️ BREAKING CHANGES
 
 **Removed Features** (no longer supported):
+
 - `--doctor` - Dependency diagnostics
 - `--json` - JSON output mode
 - `--tree` / `--tree-verbose` - Tree view modes
@@ -23,6 +42,7 @@ symlinkit v2.0 represents a significant refocus on what matters: **a fast, secur
 - Long help/version flags (`--help`, `--version`) - Use short flags (`-h`, `-v`)
 
 **Removed Dependencies**:
+
 - **fzf** - No longer used for interactive selection
 - `--fzf` flag removed
 - `--no-fzf` flag removed (no longer needed)
@@ -31,6 +51,7 @@ symlinkit v2.0 represents a significant refocus on what matters: **a fast, secur
 ### 🚀 What's Kept (Core CRUD Operations)
 
 **Symlink Operations**:
+
 - `-c` - Create mode
 - `-o` - Overwrite mode
 - `-m` - Merge mode
@@ -39,11 +60,13 @@ symlinkit v2.0 represents a significant refocus on what matters: **a fast, secur
 - `--dry-run` - Safe previews
 
 **Link Management**:
+
 - `--list` - List symlinks
 - `--broken` - Find broken links
 - `--fix-broken` - Fix broken links interactively
 
 **User Experience**:
+
 - `--no-fzf` - Disable fzf selection
 - `-h` - Help
 - `-v` - Version
@@ -70,15 +93,15 @@ symlinkit v2.0 represents a significant refocus on what matters: **a fast, secur
 
 If you were using removed features:
 
-| Removed Feature | Alternative |
-|----------------|-------------|
-| `--json` | Pipe `--list` output to `jq` if needed |
-| `--tree` | Use standard `tree` command |
-| `--count-only` | Use `--list \| wc -l` |
-| `--sort` | Pipe output through `sort` |
-| `--doctor` | Not needed - zero dependencies |
-| `--dry-run-overwrite` | Use `--dry-run` (defaults to skip) |
-| `--fzf` / `--no-fzf` | Not needed - uses prompts by default |
+| Removed Feature           | Alternative                             |
+| ------------------------- | --------------------------------------- |
+| `--json`                  | Pipe `--list` output to `jq` if needed  |
+| `--tree`                  | Use standard `tree` command             |
+| `--count-only`            | Use `--list \| wc -l`                   |
+| `--sort`                  | Pipe output through `sort`              |
+| `--doctor`                | Not needed - zero dependencies          |
+| `--dry-run-overwrite`     | Use `--dry-run` (defaults to skip)      |
+| `--fzf` / `--no-fzf`      | Not needed - uses prompts by default    |
 | Interactive fzf selection | Manual prompts (enter paths when asked) |
 
 ### 💡 Rationale
@@ -86,6 +109,7 @@ If you were using removed features:
 symlinkit started as a simple tool for dotfile management. Over time, features and dependencies accumulated (fzf, JSON output, tree views, diagnostics) that strayed from the core mission. v2.0 returns to the fundamentals: **create, read, update, delete symlinks with zero dependencies**. Fast. Secure. Simple. Portable.
 
 **Why remove fzf?**
+
 - Adds external dependency for feature used only when args aren't provided
 - Simple prompts are more predictable and portable
 - Works everywhere bash works - no installation required
@@ -321,6 +345,7 @@ If you need advanced features, standard Unix tools (`tree`, `jq`, `find`) compos
 ### 🎯 Use Cases
 
 Create mode is perfect for:
+
 - **Initial setup**: Creating symlinks for the first time
 - **Safe operations**: When you want to ensure nothing gets overwritten
 - **Validation**: Verifying targets don't already exist before linking
@@ -356,6 +381,7 @@ Create mode is perfect for:
 ### 🔄 Complete Operation Set
 
 symlinkit now offers a complete set of symlink operations:
+
 - **`-c`** (create): Safe creation, fails if exists
 - **`-o`** (overwrite): Replace existing target
 - **`-m`** (merge): Recursively symlink contents
