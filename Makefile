@@ -14,7 +14,7 @@ MANDIR   := $(PREFIX)/share/man/man1
 .PHONY: all test tests lint install uninstall release clean
 
 all: test lint
-	@echo "✅ All tests + lint passed"
+	@echo "🎉 Build successful — all tests and lint passed. Ready to ship!"
 
 test:
 	bats tests
