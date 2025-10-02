@@ -10,7 +10,13 @@ teardown() {
   rm -rf "$TMPDIR"
 }
 
+pipe_symlinkit() {
+  local input="$1"
+  shift
+  echo "$input" | "$BATS_TEST_DIRNAME/../scripts/symlinkit" "$@"
+}
+
 run_symlinkit() {
-  "$BATS_TEST_DIRNAME/../symlinkit" "$@"
+  "$BATS_TEST_DIRNAME/../scripts/symlinkit" "$@"
 }
 

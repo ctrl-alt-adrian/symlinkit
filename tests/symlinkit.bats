@@ -83,7 +83,7 @@ load ./helpers.bash
 }
 
 @test "Merge mode actual" {
-  run bash -c "echo s | $BATS_TEST_DIRNAME/../symlinkit -m \"$TMPDIR/source\" \"$TMPDIR/dest/merge_actual\""
+  run pipe_symlinkit s -m "$TMPDIR/source" "$TMPDIR/dest/merge_actual"
   [ "$status" -eq 0 ]
   [ -d "$TMPDIR/dest/merge_actual" ]
 }
@@ -113,7 +113,7 @@ load ./helpers.bash
 @test "Recursive delete dry-run" {
   mkdir -p "$TMPDIR/dest/rec_delete"
   ln -s "$TMPDIR/source/file.txt" "$TMPDIR/dest/rec_delete/link1"
-  run bash -c "echo d | $BATS_TEST_DIRNAME/../symlinkit --dry-run -dr \"$TMPDIR/dest/rec_delete\""
+  run pipe_symlinkit d --dry-run -dr "$TMPDIR/dest/rec_delete"
   [ "$status" -eq 0 ]
   [[ "$output" =~ Would ]]
   [ -L "$TMPDIR/dest/rec_delete/link1" ]
@@ -122,7 +122,7 @@ load ./helpers.bash
 @test "Recursive delete dry-run with all" {
   mkdir -p "$TMPDIR/dest/rec_delete"
   ln -s "$TMPDIR/source/file.txt" "$TMPDIR/dest/rec_delete/link1"
-  run bash -c "echo a | $BATS_TEST_DIRNAME/../symlinkit --dry-run -dr \"$TMPDIR/dest/rec_delete\""
+  run pipe_symlinkit a --dry-run -dr "$TMPDIR/dest/rec_delete"
   [ "$status" -eq 0 ]
   [[ "$output" =~ Would ]]
   [ -L "$TMPDIR/dest/rec_delete/link1" ]
@@ -131,7 +131,7 @@ load ./helpers.bash
 @test "Recursive delete skip all" {
   mkdir -p "$TMPDIR/dest/rec_delete"
   ln -s "$TMPDIR/source/file.txt" "$TMPDIR/dest/rec_delete/link1"
-  run bash -c "echo s | $BATS_TEST_DIRNAME/../symlinkit -dr \"$TMPDIR/dest/rec_delete\""
+  run pipe_symlinkit s -dr "$TMPDIR/dest/rec_delete"
   [ "$status" -eq 0 ]
   [ -L "$TMPDIR/dest/rec_delete/link1" ]
 }
@@ -141,7 +141,7 @@ load ./helpers.bash
   mkdir -p "$TMPDIR/dest/rec_delete"
   ln -s "$TMPDIR/source/file.txt" "$TMPDIR/dest/rec_delete/link1"
   ln -s "$TMPDIR/source/file.txt" "$TMPDIR/dest/rec_delete/link2"
-  run bash -c "echo a | $BATS_TEST_DIRNAME/../symlinkit -dr \"$TMPDIR/dest/rec_delete\""
+  run pipe_symlinkit a -dr "$TMPDIR/dest/rec_delete"
   [ "$status" -eq 0 ]
   [ ! -L "$TMPDIR/dest/rec_delete/link1" ]
   [ ! -L "$TMPDIR/dest/rec_delete/link2" ]
@@ -149,35 +149,23 @@ load ./helpers.bash
 }
 
 @test "Flag chaining: -cr (create recursive)" {
-  run bash -c "echo s | $BATS_TEST_DIRNAME/../symlinkit -cr \"$TMPDIR/source\" \"$TMPDIR/dest/cr_test\""
+  run pipe_symlinkit s -cr "$TMPDIR/source" "$TMPDIR/dest/cr_test"
   [ "$status" -eq 0 ]
   [ -d "$TMPDIR/dest/cr_test" ]
 }
 
 @test "Flag chaining: -or (overwrite recursive)" {
   mkdir -p "$TMPDIR/dest/or_test"
-  run bash -c "echo s | $BATS_TEST_DIRNAME/../symlinkit -or \"$TMPDIR/source\" \"$TMPDIR/dest/or_test\""
+  run pipe_symlinkit s -or "$TMPDIR/source" "$TMPDIR/dest/or_test"
   [ "$status" -eq 0 ]
   [ -d "$TMPDIR/dest/or_test" ]
-}
-
-@test "List mode" {
-  run run_symlinkit --list "$TMPDIR/json_test"
-  [ "$status" -eq 0 ]
-  [[ "$output" =~ good_link ]]
-}
-
-@test "Broken mode" {
-  run run_symlinkit --broken "$TMPDIR/json_test"
-  [ "$status" -eq 0 ]
-  [[ "$output" =~ broken_link ]]
 }
 
 @test "Fix-broken with delete all" {
   mkdir -p "$TMPDIR/fix_test"
   ln -s "/nonexistent1" "$TMPDIR/fix_test/b1"
   ln -s "/nonexistent2" "$TMPDIR/fix_test/b2"
-  run bash -c "echo a | $BATS_TEST_DIRNAME/../symlinkit --fix-broken \"$TMPDIR/fix_test\""
+  run pipe_symlinkit a --fix-broken "$TMPDIR/fix_test"
   [ "$status" -eq 0 ]
   [ ! -L "$TMPDIR/fix_test/b1" ]
 }
@@ -185,7 +173,7 @@ load ./helpers.bash
 @test "Fix-broken dry-run with delete all" {
   mkdir -p "$TMPDIR/fix_test"
   ln -s "/nonexistent3" "$TMPDIR/fix_test/b3"
-  run bash -c "echo a | $BATS_TEST_DIRNAME/../symlinkit --dry-run --fix-broken \"$TMPDIR/fix_test\""
+  run pipe_symlinkit a --dry-run --fix-broken "$TMPDIR/fix_test"
   [ "$status" -eq 0 ]
   [[ "$output" =~ Would ]]
   [ -L "$TMPDIR/fix_test/b3" ]

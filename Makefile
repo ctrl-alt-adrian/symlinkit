@@ -1,11 +1,11 @@
 SHELL := /usr/bin/env bash
 
 VERSION ?= 2.0.2
-BIN      := symlinkit
-EXTRA    := install.sh uninstall.sh
+BIN      := scripts/symlinkit
+EXTRA    := scripts/install.sh scripts/uninstall.sh
 MAN      := man/symlinkit.1
 DIST     := dist
-TARBALL  := $(DIST)/$(BIN)-$(VERSION).tar.gz
+TARBALL  := $(DIST)/symlinkit-$(VERSION).tar.gz
 
 PREFIX   ?= /usr/local
 BINDIR   := $(PREFIX)/bin
@@ -28,19 +28,19 @@ lint:
 
 install:
 	mkdir -p $(DESTDIR)$(BINDIR) $(DESTDIR)$(MANDIR)
-	install -m755 $(BIN) $(DESTDIR)$(BINDIR)/$(BIN)
-	install -m644 $(MAN) $(DESTDIR)$(MANDIR)/$(BIN).1
+	install -m755 $(BIN) $(DESTDIR)$(BINDIR)/$(notdir $(BIN))
+	install -m644 $(MAN) $(DESTDIR)$(MANDIR)/$(notdir $(MAN))
 	@echo "✅ Installed symlinkit to $(DESTDIR)$(BINDIR)"
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/$(BIN)
-	rm -f $(DESTDIR)$(MANDIR)/$(BIN).1
+	rm -f $(DESTDIR)$(BINDIR)/$(notdir $(BIN))
+	rm -f $(DESTDIR)$(MANDIR)/$(notdir $(MAN))
 	@echo "✅ Uninstalled symlinkit"
 
 release: clean test lint
-	mkdir -p $(DIST)/$(BIN)-$(VERSION)
-	cp $(BIN) $(EXTRA) $(MAN) LICENSE README.md $(DIST)/$(BIN)-$(VERSION)/
-	tar -czf $(TARBALL) -C $(DIST) $(BIN)-$(VERSION)
+	mkdir -p $(DIST)/$(notdir $(BIN))-$(VERSION)
+	cp $(BIN) $(EXTRA) $(MAN) LICENSE README.md $(DIST)/$(notdir $(BIN))-$(VERSION)/
+	tar -czf $(TARBALL) -C $(DIST) $(notdir $(BIN))-$(VERSION)
 	shasum -a 256 $(TARBALL) > $(TARBALL).sha256 || \
 	sha256sum $(TARBALL) > $(TARBALL).sha256
 	@echo "✅ Release tarball created at $(TARBALL)"
