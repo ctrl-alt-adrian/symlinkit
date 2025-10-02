@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # symlinkit installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/ctrl-alt-adrian/symlinkit/main/scripts/install.sh | bash
 
 set -euo pipefail
 
@@ -48,7 +48,7 @@ TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
 echo "Downloading..."
-download "$RAW_URL/symlinkit" "$TEMP_DIR/symlinkit" "script"
+download "$RAW_URL/scripts/symlinkit" "$TEMP_DIR/symlinkit" "script"
 
 [[ -d "$INSTALL_DIR" ]] || mkdir -p -- "$INSTALL_DIR"
 chmod +x "$TEMP_DIR/symlinkit"
