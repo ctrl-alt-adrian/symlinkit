@@ -23,8 +23,6 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
   - Contributing.md: Updated all shellcheck examples and workflow instructions
   - Testing-Framework.md: Fixed bats installation example path
 
-- **CLAUDE.md**: Added version management section with release checklist and version locations
-
 ## [2.0.3] - 2025-10-02
 
 ### 🏗️ Repository Structure
@@ -88,7 +86,6 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
 
 - **Man Page**: Removed TESTING section - man page now focuses strictly on features
 - **README.md**: Updated Testing and Contributing sections to use `make test`
-- **CLAUDE.md**: Updated all testing commands to use `make test` and bats
 - **Wiki - Installation.md**:
   - Added `uninstall.sh` documentation with Quick Uninstall section
   - Documented manual uninstall steps for all components
@@ -327,7 +324,6 @@ If you need advanced features, standard Unix tools (`tree`, `jq`, `find`) compos
   - Added comprehensive guide for editing and adding tests
   - Documented all 31 test cases with categories
   - Added CI/CD integration documentation
-- **CLAUDE.md**: Updated all test paths to use `tests/` directory
 
 ### ✅ Test Fixes
 
@@ -431,7 +427,6 @@ If you need advanced features, standard Unix tools (`tree`, `jq`, `find`) compos
 - **README.md**: Updated with new flag chaining syntax and features
 - **man page**: Updated to version 1.8.0 with recursive flag documentation
 - **CHANGELOG.md**: Comprehensive documentation of all changes
-- **CLAUDE.md**: Updated Interactive Prompts section with all `[a]ll` options
 - **Help text**: Updated with `-r, --recursive` usage examples
 
 ### 🎯 Breaking Changes
