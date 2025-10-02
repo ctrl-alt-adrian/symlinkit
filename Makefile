@@ -1,6 +1,7 @@
 SHELL := /usr/bin/env bash
 
-VERSION ?= 2.0.2
+VERSION := $(shell awk -F= '/^VERSION=/{gsub(/"/,"");print $$2}' scripts/symlinkit)
+
 BIN      := scripts/symlinkit
 EXTRA    := scripts/install.sh scripts/uninstall.sh
 MAN      := man/symlinkit.1
@@ -50,15 +51,19 @@ clean:
 	@echo "✅ Cleaned build artifacts"
 
 bump:
-	@if [ -z "$(VERSION)" ]; then \
-		echo "❌ VERSION is required. Usage: make bump VERSION=2.0.2"; \
+	@if [ -z "$(word 2,$(MAKECMDGOALS))" ]; then \
+		echo "❌ Usage: make bump X.Y.Z"; \
 		exit 1; \
 	fi
-	sed -i.bak -E "s/^(VERSION \?\= ).*/\1$(VERSION)/" Makefile
-	rm -f Makefile.bak
-	git add Makefile
-	git commit -m "Release v$(VERSION)"
-	git tag v$(VERSION)
-	@echo "✅ Bumped version to $(VERSION) and created tag v$(VERSION)"
-	@echo "👉 Now run: git push origin main --tags"
+	@NEW=$(word 2,$(MAKECMDGOALS)); \
+	gsed -i 's/^VERSION=.*/VERSION="'$$NEW'"/' scripts/symlinkit 2>/dev/null || \
+	sed -i '' -e 's/^VERSION=.*/VERSION="'$$NEW'"/' scripts/symlinkit; \
+	if [ -f man/symlinkit.1 ]; then \
+	  gsed -i "1s/[0-9]\+\.[0-9]\+\.[0-9]\+/"$$NEW"/" man/symlinkit.1 2>/dev/null || \
+	  sed -i '' -e "1s/[0-9]\+\.[0-9]\+\.[0-9]\+/"$$NEW"/" man/symlinkit.1; \
+	fi; \
+	git add scripts/symlinkit man/symlinkit.1 || true; \
+	git commit -m "chore(release): bump to v"$$NEW; \
+	git tag v$$NEW; \
+	echo "✅ Bumped to v$$NEW and created tag. Push with: git push origin main --follow-tags"
 
